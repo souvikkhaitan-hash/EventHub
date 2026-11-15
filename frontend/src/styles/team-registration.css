@@ -1,0 +1,224 @@
+.team-reg {
+  margin-top: 20px;
+  padding: 22px;
+  background: #fff;
+  border: 1px solid #e8e8e4;
+  border-radius: 18px;
+  color: #18191d;
+  font-family: "DM Sans", sans-serif;
+  min-width: 0;
+}
+.team-reg__eyebrow {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #3659f5;
+  font-weight: 800;
+}
+.team-reg h3,
+.team-reg h4 {
+  font-family: "Space Grotesk", sans-serif;
+  letter-spacing: -0.8px;
+  margin: 10px 0;
+}
+.team-reg h3 {
+  font-size: 26px;
+}
+.team-reg h4 {
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+.team-reg p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #777b87;
+}
+.team-reg__header {
+  padding-bottom: 18px;
+  border-bottom: 1px solid #ecece8;
+}
+.team-reg__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin: 19px 0;
+}
+.team-reg__tabs button {
+  min-height: 43px;
+  background: #f4f4f1;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  font:
+    700 12px "DM Sans",
+    sans-serif;
+  cursor: pointer;
+}
+.team-reg__tabs button.active {
+  background: #e9edff;
+  border-color: #3659f5;
+  color: #3659f5;
+}
+.team-reg__form,
+.team-reg__invite {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin-top: 14px;
+}
+.team-reg label {
+  font-size: 11px;
+  font-weight: 800;
+}
+.team-reg input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 12px;
+  border: 1px solid #e0e0df;
+  border-radius: 9px;
+  background: #fcfcfb;
+  color: #18191d;
+  font-size: 12px;
+}
+.team-reg input:focus-visible,
+.team-reg button:focus-visible,
+.team-reg a:focus-visible {
+  outline: 3px solid #a4b4ff;
+  outline-offset: 2px;
+}
+.team-reg__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 12px 15px;
+  border-radius: 10px;
+  border: 0;
+  background: #3659f5;
+  color: #fff;
+  text-decoration: none;
+  font:
+    800 12px "DM Sans",
+    sans-serif;
+  cursor: pointer;
+}
+.team-reg__button--light {
+  background: #eef1ff;
+  color: #3659f5;
+}
+.team-reg__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.team-reg__error,
+.team-reg__notice {
+  margin: 16px 0;
+  padding: 12px;
+  border-radius: 9px !important;
+}
+.team-reg__error {
+  color: #a52e30 !important;
+  background: #fff0ed;
+}
+.team-reg__notice {
+  color: #266039 !important;
+  background: #e8f8e7;
+}
+.team-reg__identity {
+  margin-top: 18px;
+}
+.team-reg__badge {
+  display: inline-flex;
+  padding: 6px 11px;
+  border-radius: 50px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+  background: #fff2d8;
+  color: #875b10;
+}
+.team-reg__badge--confirmed {
+  background: #e4f8df;
+  color: #2e713d;
+}
+.team-reg__count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 20px;
+}
+.team-reg__count strong {
+  font:
+    800 30px "Space Grotesk",
+    sans-serif;
+}
+.team-reg__count span {
+  font-size: 12px;
+  color: #777b87;
+}
+.team-reg__track {
+  height: 9px;
+  background: #e9edff;
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 10px 0 18px;
+}
+.team-reg__track > div {
+  height: 100%;
+  background: #3659f5;
+}
+.team-reg__members {
+  margin: 18px 0;
+}
+.team-reg__members > strong {
+  font-size: 12px;
+}
+.team-reg__members ul {
+  padding: 0;
+  margin: 10px 0;
+  list-style: none;
+}
+.team-reg__members li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 12px;
+}
+.team-reg__members li small {
+  text-transform: capitalize;
+  color: #3659f5;
+  font-weight: 700;
+}
+.team-reg__actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.team-reg__link-danger {
+  border: 1px solid #ffd4cb;
+  border-radius: 9px;
+  padding: 11px 14px;
+  color: #b94c3c;
+  background: #fff0ed;
+  font-weight: 800;
+  cursor: pointer;
+}
+.team-reg__secondary {
+  display: inline-block;
+  margin-top: 18px;
+  color: #3659f5;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+@media (max-width: 480px) {
+  .team-reg {
+    padding: 17px;
+  }
+  .team-reg h3 {
+    font-size: 23px;
+  }
+}

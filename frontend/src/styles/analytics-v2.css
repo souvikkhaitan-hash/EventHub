@@ -1,0 +1,713 @@
+/* ==========================================================
+   EVENTHUB 2.0
+   ORGANIZER ANALYTICS REDESIGN
+========================================================== */
+
+.organizer-analytics-page {
+  --analytics-blue: #3659f5;
+  --analytics-lime: #dfff75;
+  --analytics-lavender: #e9e4ff;
+  --analytics-dark: #18191d;
+  --analytics-muted: #747987;
+  --analytics-border: #e8e8e5;
+
+  min-width: 0;
+  padding-bottom: 100px;
+
+  color: var(--analytics-dark);
+}
+
+/* ==========================================================
+   PAGE HEADER
+========================================================== */
+
+.organizer-analytics-page .organizer-back-link {
+  display: inline-flex;
+  align-items: center;
+
+  margin-bottom: 38px;
+
+  color: #5d626e;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  transition:
+    color 200ms ease,
+    transform 200ms ease;
+}
+
+.organizer-analytics-page .organizer-back-link:hover {
+  color: var(--analytics-blue);
+  transform: translateX(-3px);
+}
+
+.organizer-analytics-page .organizer-page-heading {
+  margin-bottom: 48px;
+}
+
+.organizer-analytics-page .organizer-page-heading h1 {
+  margin: 19px 0;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(44px, 5vw, 76px);
+  font-weight: 800;
+
+  letter-spacing: -3px;
+  line-height: 1.03;
+}
+
+.organizer-analytics-page .organizer-page-heading h1 span {
+  color: var(--analytics-blue);
+}
+
+.organizer-analytics-page .organizer-page-heading p {
+  max-width: 480px;
+
+  color: var(--analytics-muted);
+
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+/* ==========================================================
+   SUMMARY CARDS
+========================================================== */
+
+.organizer-analytics-page .analytics-summary-grid {
+  display: grid;
+
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.organizer-analytics-page .analytics-summary-card {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+  min-height: 205px;
+
+  padding: 27px;
+
+  overflow: hidden;
+
+  background: #ffffff;
+
+  border: 1px solid var(--analytics-border);
+  border-radius: 18px;
+
+  transition:
+    transform 250ms ease,
+    box-shadow 250ms ease,
+    border-color 250ms ease;
+}
+
+.organizer-analytics-page .analytics-summary-card:hover {
+  transform: translateY(-5px);
+
+  box-shadow:
+    0 16px 40px rgba(24, 25, 29, 0.06);
+}
+
+.organizer-analytics-page .analytics-summary-card > span {
+  position: relative;
+  z-index: 1;
+
+  color: #747987;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: 1.2px;
+}
+
+.organizer-analytics-page .analytics-summary-card > strong {
+  position: relative;
+  z-index: 1;
+
+  margin-top: 25px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(36px, 3.5vw, 60px);
+  font-weight: 800;
+
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.organizer-analytics-page .analytics-summary-card > p {
+  position: relative;
+  z-index: 1;
+
+  margin-top: auto;
+  margin-bottom: 0;
+
+  padding-top: 25px;
+
+  color: #858997;
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Blue card */
+
+.organizer-analytics-page .analytics-summary-card.analytics-blue {
+  background: var(--analytics-blue);
+  border-color: var(--analytics-blue);
+  color: #ffffff;
+}
+
+.organizer-analytics-page
+.analytics-summary-card.analytics-blue > span,
+.organizer-analytics-page
+.analytics-summary-card.analytics-blue > p {
+  color: #e1e6ff;
+}
+
+/* Lime card */
+
+.organizer-analytics-page .analytics-summary-card.analytics-lime {
+  background: var(--analytics-lime);
+  border-color: var(--analytics-lime);
+}
+
+.organizer-analytics-page
+.analytics-summary-card.analytics-lime > span,
+.organizer-analytics-page
+.analytics-summary-card.analytics-lime > p {
+  color: #585e45;
+}
+
+/* Decorative number accent */
+
+.organizer-analytics-page .analytics-summary-card::after {
+  content: "✳";
+
+  position: absolute;
+
+  top: 15px;
+  right: 20px;
+
+  color: var(--analytics-blue);
+
+  font-size: 21px;
+  opacity: 0.28;
+}
+
+.organizer-analytics-page
+.analytics-summary-card.analytics-blue::after {
+  color: #ffffff;
+}
+
+.organizer-analytics-page
+.analytics-summary-card.analytics-lime::after {
+  color: #18191d;
+}
+
+/* ==========================================================
+   SECONDARY METRICS
+========================================================== */
+
+.organizer-analytics-page .analytics-secondary-grid {
+  display: grid;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 18px;
+
+  margin-bottom: 76px;
+}
+
+.organizer-analytics-page .analytics-metric-panel {
+  min-width: 0;
+  min-height: 235px;
+
+  padding: 30px;
+
+  background: #ffffff;
+
+  border: 1px solid var(--analytics-border);
+  border-radius: 18px;
+
+  transition:
+    transform 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.organizer-analytics-page .analytics-metric-panel:hover {
+  transform: translateY(-3px);
+
+  box-shadow:
+    0 12px 30px rgba(24, 25, 29, 0.045);
+}
+
+.organizer-analytics-page .analytics-metric-panel > span {
+  color: #818694;
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+
+.organizer-analytics-page .analytics-metric-panel > strong {
+  display: block;
+
+  margin: 21px 0;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(36px, 3vw, 49px);
+  letter-spacing: -2px;
+  line-height: 1.1;
+}
+
+.organizer-analytics-page .analytics-metric-panel > p {
+  max-width: 340px;
+
+  color: #818694;
+
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+/* Capacity progress */
+
+.organizer-analytics-page .analytics-progress-track {
+  height: 12px;
+
+  margin: 20px 0;
+
+  overflow: hidden;
+
+  background: #e9edff;
+  border-radius: 999px;
+}
+
+.organizer-analytics-page .analytics-progress-fill {
+  height: 100%;
+
+  background: var(--analytics-blue);
+  border-radius: inherit;
+
+  transition: width 450ms ease;
+}
+
+/* Event status */
+
+.organizer-analytics-page .analytics-status-list {
+  margin-top: 17px;
+}
+
+.organizer-analytics-page .analytics-status-list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  gap: 16px;
+
+  padding: 16px 0;
+
+  border-bottom: 1px solid #eeeeea;
+}
+
+.organizer-analytics-page
+.analytics-status-list > div > span {
+  color: #777b87;
+  font-size: 13px;
+}
+
+.organizer-analytics-page
+.analytics-status-list > div > strong {
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 20px;
+  font-weight: 800;
+}
+
+/* ==========================================================
+   SECTION HEADINGS
+========================================================== */
+
+.organizer-analytics-page .organizer-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+
+  gap: 24px;
+
+  margin-bottom: 25px;
+}
+
+.organizer-analytics-page
+.organizer-section-heading h2 {
+  margin: 14px 0 0;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(27px, 3vw, 39px);
+  font-weight: 800;
+
+  letter-spacing: -1.5px;
+}
+
+.organizer-analytics-page .organizer-event-count {
+  color: #858997;
+
+  font-size: 12px;
+}
+
+/* ==========================================================
+   REGISTRATION GROWTH
+========================================================== */
+
+/*
+   These rules are limited to common chart structures.
+   They do not alter calculated chart values.
+*/
+
+.organizer-analytics-page .analytics-trends-card {
+  min-width: 0;
+
+  padding: 30px;
+
+  background: #ffffff;
+
+  border: 1px solid var(--analytics-border);
+  border-radius: 20px;
+
+  box-shadow:
+    0 10px 30px rgba(24, 25, 29, 0.025);
+}
+
+.organizer-analytics-page .analytics-trends-card select {
+  width: 100%;
+  max-width: 440px;
+
+  min-height: 50px;
+  padding: 12px 16px;
+
+  background: #faf9f6;
+  color: var(--analytics-dark);
+
+  border: 1px solid #e2e2df;
+  border-radius: 11px;
+
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.organizer-analytics-page
+.analytics-trends-card select:focus {
+  outline: none;
+
+  border-color: var(--analytics-blue);
+
+  box-shadow:
+    0 0 0 3px rgba(54, 89, 245, 0.1);
+}
+
+.organizer-analytics-page .analytics-growth-bar-total,
+.organizer-analytics-page .analytics-growth-bar-daily {
+  border-radius: 8px 8px 2px 2px;
+
+  transition:
+    height 300ms ease,
+    opacity 200ms ease;
+}
+
+/* ==========================================================
+   EVENT PERFORMANCE
+========================================================== */
+
+.organizer-analytics-page .analytics-events-section {
+  margin-top: 76px;
+  margin-bottom: 76px;
+}
+
+.organizer-analytics-page .organizer-table-wrapper {
+  min-width: 0;
+  overflow-x: auto;
+
+  background: #ffffff;
+
+  border: 1px solid var(--analytics-border);
+  border-radius: 17px;
+}
+
+.organizer-analytics-page .organizer-events-table {
+  width: 100%;
+
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.organizer-analytics-page .organizer-events-table th {
+  padding: 20px 23px;
+
+  background: #fcfcfb;
+
+  color: #858997;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: 1px;
+
+  white-space: nowrap;
+}
+
+.organizer-analytics-page .organizer-events-table td {
+  padding: 22px 23px;
+
+  border-top: 1px solid #eeeeea;
+
+  font-size: 12px;
+
+  white-space: nowrap;
+}
+
+.organizer-analytics-page
+.organizer-events-table td:first-child {
+  min-width: 200px;
+
+  font-weight: 700;
+
+  white-space: normal;
+}
+
+.organizer-analytics-page
+.organizer-events-table tbody tr {
+  transition: background 200ms ease;
+}
+
+.organizer-analytics-page
+.organizer-events-table tbody tr:hover {
+  background: #f6f7ff;
+}
+
+/* ==========================================================
+   CATEGORIES
+========================================================== */
+
+.organizer-analytics-page .analytics-categories-section {
+  margin-top: 70px;
+}
+
+.organizer-analytics-page .analytics-category-grid {
+  display: grid;
+
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  gap: 18px;
+}
+
+.organizer-analytics-page .analytics-category-card {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+  min-height: 190px;
+
+  padding: 26px;
+
+  background: #ffffff;
+
+  border: 1px solid var(--analytics-border);
+  border-radius: 17px;
+
+  overflow: hidden;
+
+  transition:
+    transform 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.organizer-analytics-page .analytics-category-card:hover {
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 14px 35px rgba(24, 25, 29, 0.05);
+}
+
+.organizer-analytics-page .analytics-category-card > span {
+  color: #717684;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: 1.1px;
+}
+
+.organizer-analytics-page .analytics-category-card > strong {
+  margin-top: 24px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 52px;
+  font-weight: 800;
+
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.organizer-analytics-page .analytics-category-card > p {
+  margin-top: auto;
+
+  color: #858997;
+
+  font-size: 12px;
+}
+
+.organizer-analytics-page
+.analytics-category-card:nth-child(3n + 1) {
+  background: #e9e4ff;
+}
+
+.organizer-analytics-page
+.analytics-category-card:nth-child(3n + 2) {
+  background: #dfff75;
+}
+
+.organizer-analytics-page
+.analytics-category-card:nth-child(3n + 3) {
+  background: #f2f4ff;
+}
+
+/* ==========================================================
+   RESPONSIVE — TABLET
+========================================================== */
+
+@media (max-width: 1200px) {
+  .organizer-analytics-page .analytics-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .organizer-analytics-page .analytics-category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================
+   RESPONSIVE — MOBILE
+========================================================== */
+
+@media (max-width: 760px) {
+  .organizer-analytics-page {
+    padding-bottom: 65px;
+  }
+
+  .organizer-analytics-page .organizer-page-heading h1 {
+    font-size: 45px;
+    letter-spacing: -2px;
+  }
+
+  .organizer-analytics-page .analytics-secondary-grid {
+    grid-template-columns: 1fr;
+
+    gap: 13px;
+    margin-bottom: 55px;
+  }
+
+  .organizer-analytics-page .analytics-trends-card {
+    padding: 20px;
+  }
+
+  .organizer-analytics-page .analytics-events-section {
+    margin-top: 55px;
+    margin-bottom: 55px;
+  }
+
+  .organizer-analytics-page .organizer-events-table {
+    min-width: 710px;
+  }
+
+  .organizer-analytics-page .organizer-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .organizer-analytics-page .analytics-category-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .organizer-analytics-page .analytics-category-card {
+    min-height: 155px;
+  }
+}
+
+/* ==========================================================
+   RESPONSIVE — SMALL PHONES
+========================================================== */
+
+@media (max-width: 480px) {
+  .organizer-analytics-page .analytics-summary-grid {
+    gap: 11px;
+  }
+
+  .organizer-analytics-page .analytics-summary-card {
+    min-height: 160px;
+    padding: 17px;
+  }
+
+  .organizer-analytics-page .analytics-summary-card > span {
+    font-size: 9px;
+    line-height: 1.5;
+  }
+
+  .organizer-analytics-page .analytics-summary-card > strong {
+    margin-top: 20px;
+
+    font-size: 38px;
+  }
+
+  .organizer-analytics-page .analytics-summary-card > p {
+    padding-top: 18px;
+
+    font-size: 11px;
+  }
+
+  .organizer-analytics-page .analytics-metric-panel {
+    min-height: 190px;
+    padding: 22px;
+  }
+
+  .organizer-analytics-page .analytics-trends-card {
+    padding: 16px;
+  }
+}
+
+/* ==========================================================
+   ACCESSIBILITY
+========================================================== */
+
+.organizer-analytics-page
+a:focus-visible,
+.organizer-analytics-page
+button:focus-visible,
+.organizer-analytics-page
+select:focus-visible {
+  outline: 2px solid var(--analytics-blue);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .organizer-analytics-page *,
+  .organizer-analytics-page *::before,
+  .organizer-analytics-page *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

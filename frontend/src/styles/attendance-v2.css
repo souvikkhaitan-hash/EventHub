@@ -1,0 +1,829 @@
+/* ============================================================
+   EVENTHUB 2.0 — ATTENDANCE EXPERIENCE
+   Visual enhancement of the existing attendance system.
+
+   IMPORTANT:
+   This file changes presentation only.
+   It does not modify QR verification or attendance logic.
+============================================================ */
+
+
+/* ============================================================
+   01 — PAGE
+============================================================ */
+
+.organizer-attendance-page {
+  position: relative;
+
+  width: 100%;
+  min-width: 0;
+
+  padding-bottom: 100px;
+
+  color: #18191d;
+}
+
+
+/* ============================================================
+   02 — PAGE HEADING
+============================================================ */
+
+.organizer-attendance-page .organizer-page-heading {
+  position: relative;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+
+  gap: 28px;
+
+  margin-top: 35px;
+  margin-bottom: 45px;
+}
+
+.organizer-attendance-page
+.organizer-page-heading h1 {
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(46px, 5vw, 76px);
+
+  font-weight: 800;
+
+  line-height: 1.02;
+  letter-spacing: -3px;
+}
+
+.organizer-attendance-page
+.organizer-page-heading h1 span {
+  color: #3659f5;
+}
+
+.organizer-attendance-page
+.organizer-page-heading p {
+  color: #777b87;
+
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+
+/* ============================================================
+   03 — STATISTICS
+============================================================ */
+
+.organizer-attendance-page .organizer-stats {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+
+  gap: 18px;
+
+  margin-bottom: 28px;
+}
+
+.organizer-attendance-page .organizer-stat-card {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+  min-height: 185px;
+
+  padding: 27px;
+
+  border-radius: 18px;
+
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.organizer-attendance-page
+.organizer-stat-card:hover {
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 15px 35px rgba(24, 25, 29, 0.07);
+}
+
+.organizer-attendance-page
+.organizer-stat-card > span {
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: 1.2px;
+}
+
+.organizer-attendance-page
+.organizer-stat-card > strong {
+  margin-top: 20px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(42px, 4vw, 64px);
+
+  font-weight: 800;
+
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.organizer-attendance-page
+.organizer-stat-card > p {
+  margin-top: auto;
+  padding-top: 18px;
+
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+
+/* ============================================================
+   04 — ATTENDANCE PROGRESS
+============================================================ */
+
+.attendance-progress-section {
+  position: relative;
+
+  margin-bottom: 65px;
+
+  padding: 30px 34px;
+
+  background: #ffffff;
+
+  border: 1px solid #e9e8e4;
+  border-radius: 18px;
+
+  box-shadow:
+    0 8px 24px rgba(24, 25, 29, 0.025);
+}
+
+.attendance-progress-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  gap: 20px;
+
+  margin-bottom: 19px;
+}
+
+.attendance-progress-heading strong {
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.attendance-progress-heading span {
+  color: #3659f5;
+
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.attendance-progress-track {
+  width: 100%;
+  height: 13px;
+
+  overflow: hidden;
+
+  background: #e9edff;
+
+  border-radius: 999px;
+}
+
+.attendance-progress-fill {
+  height: 100%;
+
+  background: #3659f5;
+
+  border-radius: inherit;
+
+  transition: width 450ms ease;
+}
+
+
+/* ============================================================
+   05 — SCANNER SECTION
+============================================================ */
+
+.attendance-scanner-section {
+  margin-bottom: 75px;
+}
+
+.attendance-section-heading {
+  margin-bottom: 28px;
+}
+
+.attendance-section-heading h2 {
+  margin: 13px 0;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(29px, 3.2vw, 42px);
+
+  font-weight: 800;
+
+  letter-spacing: -1.4px;
+}
+
+.attendance-section-heading p {
+  max-width: 570px;
+
+  color: #777b87;
+
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+
+/* ============================================================
+   06 — SCANNER GRID
+============================================================ */
+
+.attendance-scanner-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 20px;
+
+  align-items: stretch;
+}
+
+.attendance-camera-card,
+.attendance-manual-card {
+  position: relative;
+
+  min-width: 0;
+
+  padding: 28px;
+
+  background: #ffffff;
+
+  border: 1px solid #e8e8e4;
+  border-radius: 20px;
+
+  transition:
+    border-color 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.attendance-camera-card:hover,
+.attendance-manual-card:hover {
+  border-color: #d6dcff;
+
+  box-shadow:
+    0 14px 35px rgba(54, 89, 245, 0.04);
+}
+
+.attendance-camera-heading,
+.attendance-card-eyebrow {
+  color: #3659f5;
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+}
+
+
+/* ============================================================
+   07 — CAMERA SCANNER
+============================================================ */
+
+.attendance-camera-placeholder {
+  display: flex;
+  flex-direction: column;
+
+  justify-content: center;
+  align-items: center;
+
+  min-height: 340px;
+
+  text-align: center;
+}
+
+.attendance-scan-icon {
+  display: grid;
+  place-items: center;
+
+  width: 95px;
+  height: 95px;
+
+  background: #e9edff;
+  color: #3659f5;
+
+  border: 1px solid #d7dfff;
+  border-radius: 25px;
+
+  font-size: 48px;
+
+  transition:
+    transform 280ms ease,
+    background 280ms ease;
+}
+
+.attendance-camera-card:hover
+.attendance-scan-icon {
+  transform: scale(1.06);
+
+  background: #dfe5ff;
+}
+
+.attendance-camera-placeholder h3 {
+  margin: 28px 0 12px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 29px;
+
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.attendance-camera-placeholder p {
+  max-width: 300px;
+
+  color: #777b87;
+
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.attendance-camera-placeholder button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 48px;
+
+  margin-top: 25px;
+
+  padding: 14px 25px;
+
+  background: #3659f5;
+  color: #ffffff;
+
+  border: none;
+  border-radius: 11px;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  box-shadow:
+    0 7px 18px rgba(54, 89, 245, 0.16);
+
+  transition:
+    transform 200ms ease,
+    background 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.attendance-camera-placeholder button:hover {
+  background: #2946cf;
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 10px 22px rgba(54, 89, 245, 0.22);
+}
+
+
+/* ============================================================
+   08 — ACTIVE CAMERA
+============================================================ */
+
+.attendance-camera-active {
+  padding-top: 25px;
+}
+
+#eventhub-qr-reader {
+  overflow: hidden;
+
+  width: 100%;
+  max-width: 100%;
+
+  background: #18191d;
+
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+}
+
+#eventhub-qr-reader video {
+  display: block;
+
+  width: 100%;
+  max-width: 100%;
+
+  border-radius: 13px;
+}
+
+.attendance-stop-camera {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 45px;
+
+  margin-top: 20px;
+
+  padding: 12px 19px;
+
+  background: #fff0ed;
+  color: #b94c3c;
+
+  border: 1px solid #ffd4cb;
+  border-radius: 10px;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.attendance-stop-camera:hover {
+  background: #ffe5df;
+}
+
+
+/* ============================================================
+   09 — MANUAL CHECK-IN
+============================================================ */
+
+.attendance-manual-card h3 {
+  margin: 23px 0 13px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 29px;
+  font-weight: 800;
+
+  letter-spacing: -1px;
+}
+
+.attendance-manual-card > p {
+  max-width: 390px;
+
+  margin-bottom: 30px;
+
+  color: #777b87;
+
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.attendance-manual-card form {
+  display: flex;
+  flex-direction: column;
+
+  gap: 12px;
+}
+
+.attendance-manual-card label {
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: 1px;
+}
+
+.attendance-manual-card input {
+  width: 100%;
+  min-height: 54px;
+
+  padding: 15px 17px;
+
+  background: #faf9f6;
+  color: #18191d;
+
+  border: 1px solid #e0e0dc;
+  border-radius: 11px;
+
+  font-size: 13px;
+
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.attendance-manual-card input:focus {
+  outline: none;
+
+  border-color: #3659f5;
+
+  box-shadow:
+    0 0 0 3px rgba(54, 89, 245, 0.08);
+}
+
+.attendance-manual-card form button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  width: 100%;
+  min-height: 52px;
+
+  margin-top: 10px;
+
+  padding: 14px;
+
+  background: #3659f5;
+  color: #ffffff;
+
+  border: 0;
+  border-radius: 11px;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  transition:
+    transform 200ms ease,
+    background 200ms ease;
+}
+
+.attendance-manual-card
+form button:hover:not(:disabled) {
+  transform: translateY(-2px);
+
+  background: #2946cf;
+}
+
+.attendance-manual-card
+form button:disabled {
+  opacity: 0.55;
+
+  cursor: not-allowed;
+}
+
+
+/* ============================================================
+   10 — VERIFICATION FEEDBACK
+============================================================ */
+
+.attendance-success,
+.attendance-error {
+  position: relative;
+
+  margin-top: 22px;
+
+  padding: 20px;
+
+  border-radius: 12px;
+
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.attendance-success {
+  background: #e9f9e6;
+  color: #286d39;
+
+  border: 1px solid #c7eac0;
+}
+
+.attendance-success strong {
+  display: block;
+
+  margin-bottom: 8px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.attendance-error {
+  background: #fff0ed;
+  color: #b94c3c;
+
+  border: 1px solid #ffd4cb;
+}
+
+.attendance-security-note {
+  margin-top: 20px;
+
+  color: #858998;
+
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+
+/* ============================================================
+   11 — ATTENDANCE REGISTER
+============================================================ */
+
+.organizer-attendance-page
+.organizer-events-section {
+  margin-top: 55px;
+}
+
+.organizer-attendance-page
+.organizer-section-heading h2 {
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(27px, 3vw, 36px);
+
+  font-weight: 800;
+  letter-spacing: -1.1px;
+}
+
+.attendance-refresh-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+
+  min-height: 42px;
+
+  padding: 11px 18px;
+
+  background: #ffffff;
+  color: #3659f5;
+
+  border: 1px solid #dbe1ff;
+  border-radius: 10px;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+
+  transition:
+    background 200ms ease,
+    transform 200ms ease;
+}
+
+.attendance-refresh-button:hover {
+  background: #f2f4ff;
+
+  transform: translateY(-2px);
+}
+
+.organizer-attendance-page
+.organizer-table-wrapper {
+  overflow-x: auto;
+
+  border-radius: 16px;
+
+  background: #ffffff;
+}
+
+.organizer-attendance-page
+.organizer-events-table {
+  width: 100%;
+
+  border-collapse: collapse;
+}
+
+.organizer-attendance-page
+.organizer-events-table th {
+  padding: 20px;
+
+  background: #fcfcfb;
+
+  color: #858998;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: 1px;
+  text-align: left;
+}
+
+.organizer-attendance-page
+.organizer-events-table td {
+  padding: 21px 20px;
+
+  border-top: 1px solid #eeeeea;
+
+  font-size: 12px;
+}
+
+.organizer-attendance-page
+.organizer-events-table tbody tr {
+  transition: background 180ms ease;
+}
+
+.organizer-attendance-page
+.organizer-events-table tbody tr:hover {
+  background: #fafaff;
+}
+
+
+/* ============================================================
+   12 — ATTENDANCE BADGES
+============================================================ */
+
+.attendance-status {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 8px 14px;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.attendance-status-present {
+  background: #e4f8df;
+  color: #2f7a3f;
+}
+
+.attendance-status-pending {
+  background: #fff3db;
+  color: #956112;
+}
+
+
+/* ============================================================
+   13 — RESPONSIVE
+============================================================ */
+
+@media (max-width: 1100px) {
+  .attendance-scanner-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-camera-placeholder {
+    min-height: 290px;
+  }
+}
+
+@media (max-width: 760px) {
+  .organizer-attendance-page
+  .organizer-page-heading {
+    flex-direction: column;
+    align-items: flex-start;
+
+    gap: 20px;
+  }
+
+  .organizer-attendance-page
+  .organizer-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .organizer-attendance-page
+  .organizer-stat-card {
+    min-height: 150px;
+  }
+
+  .attendance-progress-section {
+    padding: 22px;
+  }
+
+  .attendance-progress-heading {
+    flex-direction: column;
+    align-items: flex-start;
+
+    gap: 9px;
+  }
+
+  .attendance-camera-card,
+  .attendance-manual-card {
+    padding: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .organizer-attendance-page {
+    padding-bottom: 50px;
+  }
+
+  .attendance-camera-placeholder {
+    min-height: 240px;
+  }
+
+  .attendance-scan-icon {
+    width: 75px;
+    height: 75px;
+
+    font-size: 38px;
+  }
+
+  .attendance-camera-placeholder h3,
+  .attendance-manual-card h3 {
+    font-size: 24px;
+  }
+
+  .attendance-progress-section {
+    padding: 18px;
+  }
+}
+
+
+/* ============================================================
+   14 — ACCESSIBILITY
+============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .organizer-attendance-page *,
+  .organizer-attendance-page *::before,
+  .organizer-attendance-page *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

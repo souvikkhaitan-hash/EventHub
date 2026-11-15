@@ -1,0 +1,856 @@
+/* ============================================================
+   EVENTHUB 2.0 — DIGITAL CAMPUS PASS
+============================================================ */
+
+.student-ticket-v2 {
+  min-height: 100vh;
+
+  padding: 65px 0 120px;
+
+  background:
+    radial-gradient(
+      ellipse at 90% 10%,
+      rgba(233, 228, 255, 0.42),
+      transparent 40%
+    ),
+    #faf9f6;
+
+  color: #18191d;
+}
+
+/* ============================================================
+   BACK LINK
+============================================================ */
+
+.ticket-back-link {
+  display: inline-flex;
+  align-items: center;
+
+  color: #525662;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  transition:
+    color 200ms ease,
+    transform 200ms ease;
+}
+
+.ticket-back-link:hover {
+  color: #3659f5;
+  transform: translateX(-4px);
+}
+
+/* ============================================================
+   PAGE HEADING
+============================================================ */
+
+.ticket-v2-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 30px;
+
+  margin: 65px 0 60px;
+}
+
+.ticket-v2-eyebrow {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 11px;
+
+  color: #3659f5;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: 1.6px;
+}
+
+.ticket-v2-eyebrow > span {
+  font-size: 19px;
+}
+
+.ticket-v2-heading h1 {
+  margin: 22px 0;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(55px, 6vw, 85px);
+
+  font-weight: 700;
+
+  line-height: 1.01;
+  letter-spacing: -4px;
+}
+
+.ticket-v2-heading h1 span {
+  color: #3659f5;
+}
+
+.ticket-v2-heading p {
+  max-width: 480px;
+
+  color: #73757e;
+
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.ticket-v2-heading-art {
+  display: grid;
+  place-items: center;
+
+  width: 115px;
+  height: 115px;
+
+  flex-shrink: 0;
+
+  background: #dfff75;
+
+  border-radius: 50%;
+
+  transform: rotate(-12deg);
+}
+
+.ticket-v2-heading-art span {
+  font-size: 65px;
+  font-weight: 700;
+
+  line-height: 1;
+}
+
+/* ============================================================
+   MAIN LAYOUT
+============================================================ */
+
+.ticket-v2-wrapper {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 560px)
+    minmax(0, 390px);
+
+  align-items: start;
+
+  gap: clamp(35px, 6vw, 90px);
+}
+
+/* ============================================================
+   DIGITAL TICKET
+============================================================ */
+
+.ticket-v2-pass {
+  position: relative;
+
+  overflow: hidden;
+
+  background: #ffffff;
+
+  border: 1px solid #e7e6e1;
+  border-radius: 22px;
+
+  box-shadow:
+    0 20px 65px rgba(24, 25, 29, 0.08);
+
+  animation:
+    ticketV2Enter 650ms ease both;
+}
+
+/* ============================================================
+   TICKET HEADER
+============================================================ */
+
+.ticket-v2-pass-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  padding: 25px 30px;
+
+  background: #dfff75;
+}
+
+.ticket-brand {
+  display: flex;
+  align-items: center;
+
+  gap: 11px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 23px;
+  letter-spacing: -0.8px;
+}
+
+.ticket-v2-brand-logo {
+  width: 36px;
+  height: 36px;
+
+  object-fit: contain;
+}
+
+.ticket-edition {
+  font-size: 9px;
+  font-weight: 800;
+
+  letter-spacing: 0.9px;
+}
+
+/* ============================================================
+   EVENT INFORMATION
+============================================================ */
+
+.ticket-v2-event {
+  padding: 38px 35px 34px;
+}
+
+.ticket-v2-event-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  gap: 16px;
+}
+
+.ticket-eyebrow {
+  color: #3659f5;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: 1.5px;
+}
+
+.ticket-v2-ticket-number {
+  display: inline-flex;
+
+  padding: 7px 11px;
+
+  background: #eef0ff;
+  color: #3659f5;
+
+  border-radius: 8px;
+
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ticket-v2-event h2 {
+  margin: 22px 0 36px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(34px, 3.8vw, 49px);
+
+  line-height: 1.08;
+  letter-spacing: -2px;
+
+  overflow-wrap: anywhere;
+}
+
+/* ============================================================
+   EVENT DETAILS GRID
+============================================================ */
+
+.ticket-v2-info-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 24px;
+}
+
+.ticket-v2-info-item {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 13px;
+}
+
+.ticket-v2-info-icon {
+  display: grid;
+  place-items: center;
+
+  width: 35px;
+  height: 35px;
+
+  flex-shrink: 0;
+
+  background: #eef0ff;
+  color: #3659f5;
+
+  border-radius: 9px;
+
+  font-size: 19px;
+}
+
+.ticket-v2-info-item > div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+  min-width: 0;
+}
+
+.ticket-v2-info-item > div > span {
+  color: #858793;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  letter-spacing: 0.9px;
+}
+
+.ticket-v2-info-item strong {
+  font-size: 12px;
+  line-height: 1.6;
+
+  overflow-wrap: anywhere;
+}
+
+/* ============================================================
+   PERFORATION
+============================================================ */
+
+.ticket-perforation {
+  position: relative;
+
+  margin: 0 23px;
+
+  border-top: 2px dashed #dfdfdc;
+}
+
+.ticket-perforation::before,
+.ticket-perforation::after {
+  content: "";
+
+  position: absolute;
+  top: -15px;
+
+  width: 28px;
+  height: 28px;
+
+  border-radius: 50%;
+
+  background: #faf9f6;
+}
+
+.ticket-perforation::before {
+  left: -38px;
+}
+
+.ticket-perforation::after {
+  right: -38px;
+}
+
+/* ============================================================
+   QR SECTION
+============================================================ */
+
+.ticket-v2-qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  padding: 43px 30px 48px;
+
+  text-align: center;
+}
+
+.ticket-v2-qr-section h3 {
+  margin: 17px 0 8px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 27px;
+  letter-spacing: -0.9px;
+}
+
+.ticket-v2-qr-intro {
+  max-width: 300px;
+
+  margin: 0;
+
+  color: #73757e;
+
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* ============================================================
+   QR CODE CONTAINER
+============================================================ */
+
+.ticket-v2-qr-container {
+  display: grid;
+  place-items: center;
+
+  margin: 28px 0 30px;
+  padding: 17px;
+
+  background: #ffffff;
+
+  border: 1px solid #e7e7e4;
+  border-radius: 17px;
+
+  box-shadow:
+    0 9px 27px rgba(24, 25, 29, 0.04);
+}
+
+.ticket-v2-qr-container svg {
+  display: block;
+
+  max-width: 100%;
+  height: auto;
+}
+
+/* ============================================================
+   ATTENDANCE STATUS
+============================================================ */
+
+.ticket-v2-checkin {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 14px;
+
+  width: 100%;
+  max-width: 390px;
+
+  padding: 18px;
+
+  border-radius: 12px;
+
+  text-align: left;
+}
+
+.ticket-v2-checkin-icon {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 32px;
+  height: 32px;
+
+  border-radius: 50%;
+
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.ticket-v2-checkin > div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+}
+
+.ticket-v2-checkin strong {
+  font-size: 13px;
+}
+
+.ticket-v2-checkin > div > span {
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.ticket-v2-checked-in {
+  background: #e7f9e2;
+  color: #28753b;
+}
+
+.ticket-v2-checked-in
+.ticket-v2-checkin-icon {
+  background: #c8edbf;
+}
+
+.ticket-v2-pending {
+  background: #f0f1f5;
+  color: #555b6d;
+}
+
+.ticket-v2-pending
+.ticket-v2-checkin-icon {
+  background: #e0e2e9;
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+
+.ticket-v2-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  padding: 21px 30px;
+
+  background: #18191d;
+  color: #ffffff;
+}
+
+.ticket-v2-footer span {
+  color: #a9abb5;
+
+  font-size: 9px;
+  letter-spacing: 0.9px;
+}
+
+.ticket-v2-footer strong {
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 12px;
+}
+
+/* ============================================================
+   INSTRUCTIONS PANEL
+============================================================ */
+
+.ticket-v2-instructions {
+  padding-top: 35px;
+
+  animation:
+    ticketV2Enter 700ms 130ms both;
+}
+
+.ticket-v2-instructions-eyebrow {
+  color: #3659f5;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: 1.5px;
+}
+
+.ticket-v2-instructions h3 {
+  margin: 20px 0 20px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(34px, 3.2vw, 48px);
+
+  line-height: 1.07;
+  letter-spacing: -1.8px;
+}
+
+.ticket-v2-instructions h3 span {
+  color: #3659f5;
+}
+
+.ticket-v2-instructions-intro {
+  max-width: 330px;
+
+  margin: 0 0 35px;
+
+  color: #73757e;
+
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+/* ============================================================
+   INSTRUCTION STEPS
+============================================================ */
+
+.ticket-v2-steps {
+  display: flex;
+  flex-direction: column;
+
+  gap: 0;
+}
+
+.ticket-v2-step {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 18px;
+
+  padding: 22px 0;
+
+  border-bottom: 1px solid #e9e8e4;
+}
+
+.ticket-v2-step-number {
+  display: grid;
+  place-items: center;
+
+  width: 42px;
+  height: 42px;
+
+  flex-shrink: 0;
+
+  background: #eef0ff;
+  color: #3659f5;
+
+  border-radius: 12px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ticket-v2-step > div {
+  min-width: 0;
+}
+
+.ticket-v2-step strong {
+  display: block;
+
+  margin-bottom: 10px;
+
+  font-size: 15px;
+}
+
+.ticket-v2-step p {
+  margin: 0;
+
+  color: #73757e;
+
+  font-size: 12px;
+  line-height: 1.85;
+}
+
+/* ============================================================
+   SECURITY NOTE
+============================================================ */
+
+.ticket-v2-security-note {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 15px;
+
+  margin: 30px 0;
+  padding: 20px;
+
+  background: #fff5e9;
+
+  border: 1px solid #ffe4c7;
+  border-radius: 12px;
+}
+
+.ticket-v2-security-note > span {
+  color: #ae6a1c;
+
+  font-size: 24px;
+}
+
+.ticket-v2-security-note p {
+  margin: 0;
+
+  color: #86602f;
+
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.ticket-v2-security-note strong {
+  color: #8c5214;
+}
+
+/* ============================================================
+   EVENT LINK
+============================================================ */
+
+.ticket-v2-event-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 30px;
+
+  padding: 15px 22px;
+
+  background: #3659f5;
+  color: #ffffff;
+
+  border-radius: 10px;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.ticket-v2-event-link:hover {
+  transform: translateY(-3px);
+
+  box-shadow:
+    0 10px 22px rgba(54, 89, 245, 0.17);
+}
+
+.ticket-v2-event-link > span {
+  font-size: 19px;
+}
+
+/* ============================================================
+   LOADING / ERROR
+============================================================ */
+
+.ticket-message {
+  padding: 40px;
+
+  background: #ffffff;
+
+  border: 1px solid #e7e6e1;
+  border-radius: 15px;
+
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.ticket-error {
+  color: #b94c3c;
+}
+
+.ticket-error h2 {
+  margin-bottom: 15px;
+}
+
+.ticket-error a {
+  display: inline-block;
+
+  margin-top: 20px;
+
+  color: #3659f5;
+  font-weight: 700;
+}
+
+/* ============================================================
+   ANIMATIONS
+============================================================ */
+
+@keyframes ticketV2Enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================
+   RESPONSIVE — TABLET
+============================================================ */
+
+@media (max-width: 950px) {
+  .ticket-v2-wrapper {
+    grid-template-columns: 1fr;
+
+    gap: 55px;
+
+    max-width: 600px;
+  }
+
+  .ticket-v2-instructions {
+    padding-top: 0;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE — MOBILE
+============================================================ */
+
+@media (max-width: 650px) {
+  .student-ticket-v2 {
+    padding: 40px 0 80px;
+  }
+
+  .ticket-v2-heading {
+    margin: 45px 0 40px;
+  }
+
+  .ticket-v2-heading h1 {
+    font-size: clamp(43px, 10vw, 62px);
+    letter-spacing: -2.5px;
+  }
+
+  .ticket-v2-heading p {
+    font-size: 13px;
+  }
+
+  .ticket-v2-heading-art {
+    display: none;
+  }
+
+  .ticket-v2-pass-header {
+    padding: 22px;
+  }
+
+  .ticket-brand {
+    font-size: 20px;
+  }
+
+  .ticket-edition {
+    font-size: 8px;
+  }
+
+  .ticket-v2-event {
+    padding: 30px 24px;
+  }
+
+  .ticket-v2-event h2 {
+    font-size: 34px;
+    letter-spacing: -1.4px;
+  }
+
+  .ticket-v2-info-grid {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .ticket-v2-qr-section {
+    padding: 36px 18px;
+  }
+
+  .ticket-v2-qr-container {
+    padding: 10px;
+  }
+
+  .ticket-v2-footer {
+    flex-direction: column;
+    align-items: flex-start;
+
+    padding: 20px 24px;
+  }
+
+  .ticket-v2-instructions h3 {
+    font-size: 38px;
+  }
+}
+
+/* ============================================================
+   REDUCED MOTION
+============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .ticket-v2-pass,
+  .ticket-v2-instructions {
+    animation: none !important;
+  }
+
+  .ticket-v2-event-link,
+  .ticket-back-link {
+    transition: none !important;
+  }
+
+  .ticket-v2-event-link:hover,
+  .ticket-back-link:hover {
+    transform: none;
+  }
+}

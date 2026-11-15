@@ -1,0 +1,1039 @@
+/* ==========================================================
+   EVENTHUB 2.0 — EVENT EDITOR
+========================================================== */
+
+.event-editor-page {
+  padding-bottom: 90px;
+  color: #18191d;
+}
+
+/* ==========================================================
+   HEADER
+========================================================== */
+
+.event-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+
+  gap: 32px;
+
+  margin: 35px 0 42px;
+}
+
+.event-editor-header h1 {
+  margin: 20px 0;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: clamp(42px, 4.6vw, 68px);
+  line-height: 1.04;
+  letter-spacing: -3px;
+}
+
+.event-editor-header h1 span {
+  color: #3659f5;
+}
+
+.event-editor-header p {
+  max-width: 520px;
+
+  margin: 0;
+
+  color: #777b87;
+
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+/* ==========================================================
+   STATUS
+========================================================== */
+
+.event-editor-header-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+
+  gap: 10px;
+
+  flex-shrink: 0;
+}
+
+.event-editor-status-label {
+  color: #858998;
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+}
+
+.event-editor-status {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 9px 14px;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.event-editor-status-dot {
+  width: 7px;
+  height: 7px;
+
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.event-editor-status-draft {
+  background: #eeeeee;
+  color: #626773;
+}
+
+.event-editor-status-published {
+  background: #e5f8df;
+  color: #28743c;
+}
+
+.event-editor-status-cancelled {
+  background: #ffe6e1;
+  color: #b94c3c;
+}
+
+/* ==========================================================
+   FEEDBACK
+========================================================== */
+
+.event-editor-message {
+  margin-bottom: 20px;
+}
+
+.event-editor-unsaved {
+  margin-bottom: 20px;
+
+  padding: 15px 18px;
+
+  background: #fff6df;
+  color: #926414;
+
+  border: 1px solid #f4dfa5;
+  border-radius: 11px;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ==========================================================
+   TWO-COLUMN EDITOR
+========================================================== */
+
+.event-editor-layout {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1.3fr)
+    minmax(290px, 0.85fr);
+
+  align-items: start;
+
+  gap: 28px;
+}
+
+.event-editor-form {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 18px;
+}
+
+/* ==========================================================
+   FORM SECTIONS
+========================================================== */
+
+.event-editor-form .event-form-section {
+  margin: 0;
+
+  padding: 30px;
+
+  background: white;
+
+  border: 1px solid #e9e8e4;
+  border-radius: 18px;
+}
+
+.event-editor-form .event-form-section:focus-within {
+  border-color: #ccd4ff;
+
+  box-shadow:
+    0 10px 35px rgba(54, 89, 245, 0.05);
+}
+
+.event-editor-form .event-form-section-heading {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 15px;
+
+  margin-bottom: 28px;
+}
+
+.event-editor-form .event-form-section-heading > span {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 42px;
+  height: 42px;
+
+  background: #e9edff;
+  color: #3659f5;
+
+  border-radius: 11px;
+
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.event-editor-form .event-form-section-heading h2 {
+  margin: 2px 0 5px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 22px;
+  letter-spacing: -0.7px;
+}
+
+.event-editor-form .event-form-section-heading p {
+  margin: 0;
+
+  color: #868995;
+
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.event-editor-form .event-form-fields {
+  display: flex;
+  flex-direction: column;
+
+  gap: 22px;
+}
+
+.event-editor-form .event-field {
+  display: flex;
+  flex-direction: column;
+
+  gap: 9px;
+}
+
+.event-editor-form .event-field label {
+  color: #18191d;
+
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.event-editor-form .event-field input,
+.event-editor-form .event-field textarea,
+.event-editor-form .event-field select {
+  width: 100%;
+  min-width: 0;
+
+  padding: 13px 15px;
+
+  background: #fcfcfb;
+
+  color: #18191d;
+
+  border: 1px solid #e4e4e0;
+  border-radius: 10px;
+
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+}
+
+.event-editor-form .event-field input,
+.event-editor-form .event-field select {
+  min-height: 49px;
+}
+
+.event-editor-form .event-field textarea {
+  min-height: 130px;
+
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.event-editor-form .event-field input:focus,
+.event-editor-form .event-field textarea:focus,
+.event-editor-form .event-field select:focus {
+  border-color: #3659f5;
+
+  outline: none;
+
+  box-shadow:
+    0 0 0 3px rgba(54, 89, 245, 0.09);
+}
+
+.event-editor-form .event-field-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 16px;
+}
+
+.event-editor-field-hint {
+  color: #858998;
+
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* ==========================================================
+   INFORMATION NOTE
+========================================================== */
+
+.event-editor-info-note {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 13px;
+
+  padding: 17px;
+
+  background: #f1f3ff;
+
+  border-radius: 11px;
+}
+
+.event-editor-info-note > span {
+  color: #3659f5;
+
+  font-size: 20px;
+}
+
+.event-editor-info-note p {
+  margin: 0;
+
+  color: #626779;
+
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+/* ==========================================================
+   FORM ACTIONS
+========================================================== */
+
+.event-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+
+  gap: 12px;
+
+  margin-top: 10px;
+}
+
+.event-editor-publish-button,
+.event-editor-cancel-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 48px;
+
+  padding: 12px 19px;
+
+  border-radius: 10px;
+
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.event-editor-publish-button {
+  background: #18191d;
+  color: white;
+
+  border: 1px solid #18191d;
+}
+
+.event-editor-publish-button:hover:not(:disabled) {
+  background: #32343b;
+
+  transform: translateY(-2px);
+}
+
+.event-editor-cancel-button {
+  margin-left: auto;
+
+  background: #fff0ed;
+  color: #b94c3c;
+
+  border: 1px solid #ffd5ce;
+}
+
+.event-editor-cancel-button:hover:not(:disabled) {
+  background: #ffe6df;
+}
+
+.event-editor-publish-button:disabled,
+.event-editor-cancel-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.event-editor-save-hint {
+  margin: 0;
+
+  color: #858998;
+
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.event-editor-cancelled-note {
+  padding: 16px;
+
+  background: #fff0ed;
+  color: #b94c3c;
+
+  border-radius: 10px;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ==========================================================
+   LIVE PREVIEW SIDEBAR
+========================================================== */
+
+.event-editor-preview {
+  position: sticky;
+
+  top: 30px;
+
+  min-width: 0;
+
+  padding: 22px;
+
+  background: white;
+
+  border: 1px solid #e9e8e4;
+  border-radius: 20px;
+}
+
+.event-editor-preview-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+
+  gap: 12px;
+
+  margin-bottom: 23px;
+}
+
+.event-editor-preview-heading h2 {
+  margin: 11px 0 8px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 23px;
+  letter-spacing: -0.8px;
+}
+
+.event-editor-preview-heading p {
+  margin: 0;
+
+  color: #828693;
+
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.event-editor-preview-toggle {
+  padding: 9px 12px;
+
+  background: #f1f3ff;
+  color: #3659f5;
+
+  border: none;
+  border-radius: 8px;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+/* ==========================================================
+   PREVIEW CARD
+========================================================== */
+
+.event-editor-preview-card {
+  overflow: hidden;
+
+  background: white;
+
+  border: 1px solid #e9e8e4;
+  border-radius: 16px;
+}
+
+/* Artwork */
+
+.event-editor-preview-art {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  min-height: 230px;
+
+  padding: 19px;
+
+  background: #dfff75;
+  color: #18191d;
+}
+
+.event-editor-preview-art.event-category-cultural {
+  background: #3659f5;
+  color: white;
+}
+
+.event-editor-preview-art.event-category-workshop {
+  background: #e9e4ff;
+}
+
+.event-editor-preview-art.event-category-seminar {
+  background: #ffdfaa;
+}
+
+.event-editor-preview-art.event-category-sports {
+  background: #ff806b;
+}
+
+.event-editor-preview-art-top,
+.event-editor-preview-art-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  gap: 10px;
+
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.event-editor-preview-symbol {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  flex: 1;
+}
+
+.event-editor-preview-symbol .event-artwork-icon {
+  width: 110px;
+  height: 110px;
+}
+
+/* Preview content */
+
+.event-editor-preview-body {
+  padding: 24px;
+}
+
+.event-editor-preview-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  gap: 10px;
+}
+
+.event-editor-preview-meta > span:first-child {
+  color: #3659f5;
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.event-editor-preview-body h3 {
+  margin: 20px 0 15px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 25px;
+  letter-spacing: -1px;
+  line-height: 1.2;
+
+  overflow-wrap: anywhere;
+}
+
+.event-editor-preview-description {
+  display: -webkit-box;
+
+  overflow: hidden;
+
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+
+  min-height: 54px;
+
+  color: #777b87;
+
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.event-editor-preview-details {
+  display: flex;
+  flex-direction: column;
+
+  gap: 13px;
+
+  margin-top: 24px;
+}
+
+.event-editor-preview-details > div {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 10px;
+
+  color: #626775;
+
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.event-editor-preview-details > div > span:first-child {
+  color: #3659f5;
+  font-size: 16px;
+}
+
+.event-editor-preview-footer {
+  display: flex;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin-top: 24px;
+  padding-top: 17px;
+
+  border-top: 1px solid #eeeeea;
+
+  font-size: 12px;
+}
+
+.event-editor-preview-footer span {
+  color: #858998;
+}
+
+.event-editor-preview-footer strong {
+  color: #18191d;
+}
+
+/* Preview disclaimer */
+
+.event-editor-preview-note {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 11px;
+
+  margin-top: 20px;
+  padding: 15px;
+
+  background: #f2f4ff;
+  border-radius: 11px;
+}
+
+.event-editor-preview-note > span {
+  color: #3659f5;
+  font-size: 19px;
+}
+
+.event-editor-preview-note p {
+  margin: 0;
+
+  color: #686d7e;
+
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+/* ==========================================================
+   RESPONSIVE
+========================================================== */
+
+@media (max-width: 1200px) {
+  .event-editor-layout {
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(250px, 0.75fr);
+
+    gap: 20px;
+  }
+
+  .event-editor-form .event-form-section {
+    padding: 24px;
+  }
+
+  .event-editor-preview {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 1050px) {
+  .event-editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .event-editor-preview {
+    position: static;
+  }
+
+  .event-editor-preview-content {
+    max-width: 440px;
+    margin-inline: auto;
+  }
+}
+
+@media (max-width: 650px) {
+  .event-editor-page {
+    padding-bottom: 40px;
+  }
+
+  .event-editor-header {
+    flex-direction: column;
+    align-items: flex-start;
+
+    margin: 28px 0;
+  }
+
+  .event-editor-header h1 {
+    font-size: 42px;
+    letter-spacing: -2px;
+  }
+
+  .event-editor-header-status {
+    align-items: flex-start;
+  }
+
+  .event-editor-form .event-form-section {
+    padding: 22px 18px;
+  }
+
+  .event-editor-form .event-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .event-editor-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .event-editor-actions > button {
+    width: 100%;
+  }
+
+  .event-editor-cancel-button {
+    margin-left: 0;
+  }
+
+  .event-editor-preview {
+    padding: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-editor-page *,
+  .event-editor-page *::before,
+  .event-editor-page *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ==========================================================
+   EVENTHUB — TEAM EVENT CONFIGURATION
+========================================================== */
+
+.event-editor-registration-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.event-editor-registration-option {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 12px;
+
+  min-height: 175px;
+
+  padding: 22px;
+
+  background: #ffffff;
+
+  border: 2px solid #e8e8e4;
+  border-radius: 15px;
+
+  cursor: pointer;
+
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    transform 200ms ease;
+}
+
+.event-editor-registration-option:hover {
+  border-color: #b9c6ff;
+  transform: translateY(-2px);
+}
+
+.event-editor-registration-option.selected {
+  background: #f2f4ff;
+  border-color: #3659f5;
+}
+
+.event-editor-registration-option:focus-within {
+  outline: 3px solid rgba(54, 89, 245, 0.18);
+  outline-offset: 3px;
+}
+
+.event-editor-registration-option input {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+
+  width: 18px;
+  height: 18px;
+
+  accent-color: #3659f5;
+}
+
+.registration-option-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 45px;
+  height: 45px;
+
+  background: #e9edff;
+  color: #3659f5;
+
+  border-radius: 12px;
+
+  font-size: 27px;
+  font-weight: 800;
+}
+
+.event-editor-registration-option strong {
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.event-editor-registration-option small {
+  color: #777b87;
+
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* Team settings */
+
+.event-editor-team-settings {
+  margin-top: 25px;
+  padding-top: 25px;
+
+  border-top: 1px solid #e9e8e4;
+}
+
+.event-editor-team-heading {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 12px;
+
+  margin-bottom: 25px;
+}
+
+.event-editor-team-heading > span {
+  color: #3659f5;
+  font-size: 23px;
+}
+
+.event-editor-team-heading h3 {
+  margin: 0 0 7px;
+
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.event-editor-team-heading p {
+  margin: 0;
+
+  color: #777b87;
+
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.event-editor-team-settings .event-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 17px;
+
+  margin-bottom: 25px;
+}
+
+/* Team configuration summary */
+
+.event-editor-team-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  gap: 12px;
+
+  margin-bottom: 20px;
+  padding: 20px;
+
+  background: #e9e4ff;
+
+  border-radius: 13px;
+}
+
+.event-editor-team-summary > span {
+  grid-column: 1 / -1;
+
+  color: #3659f5;
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.event-editor-team-summary > div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+}
+
+.event-editor-team-summary strong {
+  font-family: "Space Grotesk", sans-serif;
+
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.event-editor-team-summary > div > span {
+  color: #626775;
+
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* Live preview */
+
+.event-editor-preview-team {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 15px;
+
+  margin-top: 20px;
+  padding-top: 20px;
+
+  border-top: 1px solid #eeeeea;
+}
+
+.event-editor-preview-team > div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+}
+
+.event-editor-preview-team span {
+  color: #858998;
+
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+}
+
+.event-editor-preview-team strong {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Responsive */
+
+@media (max-width: 650px) {
+  .event-editor-registration-options {
+    grid-template-columns: 1fr;
+  }
+
+  .event-editor-registration-option {
+    min-height: 150px;
+  }
+
+  .event-editor-team-settings .event-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .event-editor-team-summary {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .event-editor-team-summary > div {
+    padding-bottom: 12px;
+
+    border-bottom: 1px solid rgba(54, 89, 245, 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-editor-registration-option {
+    transition: none;
+  }
+
+  .event-editor-registration-option:hover {
+    transform: none;
+  }
+}

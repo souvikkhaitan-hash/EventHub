@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">EventHub ticket spark</title>
+  <desc id="desc">A cobalt event ticket with a lime discovery spark.</desc>
+  <path d="M13 8h38a5 5 0 0 1 5 5v10a9 9 0 0 0 0 18v10a5 5 0 0 1-5 5H13a5 5 0 0 1-5-5V41a9 9 0 0 0 0-18V13a5 5 0 0 1 5-5Z" fill="#3659F5"/>
+  <path d="M32 15.5 36.4 27.6 48.5 32l-12.1 4.4L32 48.5l-4.4-12.1L15.5 32l12.1-4.4L32 15.5Z" fill="#DFFF75"/>
+  <circle cx="32" cy="32" r="3.2" fill="#3659F5"/>
+</svg>

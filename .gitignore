@@ -1,0 +1,138 @@
+# ============================================================
+# EVENTHUB — GITIGNORE
+# React + Vite + Django + PostgreSQL
+# ============================================================
+
+
+# ------------------------------------------------------------
+# ENVIRONMENT VARIABLES AND SECRETS
+# ------------------------------------------------------------
+
+.env
+.env.*
+!.env.example
+
+**/.env
+**/.env.*
+!**/.env.example
+
+*.pem
+*.key
+*.p12
+*.pfx
+
+secrets.json
+credentials.json
+
+
+# ------------------------------------------------------------
+# PYTHON VIRTUAL ENVIRONMENTS
+# ------------------------------------------------------------
+
+.venv/
+venv/
+env/
+ENV/
+
+backend/.venv/
+backend/venv/
+
+
+# ------------------------------------------------------------
+# PYTHON CACHE
+# ------------------------------------------------------------
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+*.egg-info/
+.eggs/
+
+
+# ------------------------------------------------------------
+# DJANGO
+# ------------------------------------------------------------
+
+*.log
+local_settings.py
+
+staticfiles/
+media/
+
+*.sqlite3
+*.sqlite3-journal
+
+db.sqlite3
+db.sqlite3-journal
+
+
+# ------------------------------------------------------------
+# NODE.JS / REACT / VITE
+# ------------------------------------------------------------
+
+node_modules/
+frontend/node_modules/
+
+dist/
+frontend/dist/
+
+build/
+
+.vite/
+.cache/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+# ------------------------------------------------------------
+# IDE / OPERATING SYSTEM
+# ------------------------------------------------------------
+
+.vscode/
+.idea/
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+
+# ------------------------------------------------------------
+# TEMPORARY FILES
+# ------------------------------------------------------------
+
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+temp/
+tmp/
+
+
+# ------------------------------------------------------------
+# TEST / GENERATED ARTIFACTS
+# ------------------------------------------------------------
+
+test-results/
+playwright-report/
+coverage/
+
+
+# ------------------------------------------------------------
+# LOCAL BACKUPS
+# ------------------------------------------------------------
+
+backups/
+*.backup
+*.dump
