@@ -104,13 +104,17 @@ async function getCsrfToken() {
 async function apiRequest(
   path,
   method = "GET",
-  body = null
+  body = null,
+  responseType = "json",
+  signal
 ) {
   const headers = {
-    Accept: "application/json",
+    Accept:
+      responseType === "blob"
+        ? "application/pdf, image/png, application/json"
+        : "application/json",
   };
 
-  // CSRF is required for unsafe HTTP methods.
   const unsafeMethod = ![
     "GET",
     "HEAD",
@@ -122,26 +126,48 @@ async function apiRequest(
     headers["X-CSRFToken"] = await getCsrfToken();
   }
 
-  if (body !== null) {
+  const isFormData = body instanceof FormData;
+
+  if (body !== null && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(
-    `${API_BASE}${path}`,
-    {
-      method,
-      credentials: "include",
-      headers,
-      body:
-        body !== null
-          ? JSON.stringify(body)
-          : undefined,
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    credentials: "include",
+    headers,
+    signal,
+    body:
+      body === null
+        ? undefined
+        : isFormData
+          ? body
+          : JSON.stringify(body),
+  });
+
+  // Preserve the existing JSON error handling.
+  if (!response.ok) {
+    return readResponse(response);
+  }
+
+  if (responseType === "blob") {
+    const contentType =
+      response.headers.get("content-type") || "";
+
+    if (
+      !contentType.startsWith("application/pdf") &&
+      !contentType.startsWith("image/png")
+    ) {
+      throw new Error(
+        "The server returned an unexpected file format."
+      );
     }
-  );
+
+    return response.blob();
+  }
 
   return readResponse(response);
 }
-
 
 // ============================================================
 // ORGANIZER EVENT MANAGEMENT
@@ -197,8 +223,8 @@ export function cancelEvent(id) {
 // ============================================================
 
 // Retrieve published events.
-export function getPublicEvents() {
-  return apiRequest("/api/events/");
+export function getPublicEvents(signal) {
+  return apiRequest("/api/events/", "GET", null, "json", signal);
 }
 
 // Retrieve event details.
@@ -412,5 +438,295 @@ export function withdrawEventTeam(teamId) {
 export function getOrganizerEventTeams(eventId) {
   return apiRequest(
     `${TEAM_API_BASE}/organizer/events/${teamPath(eventId)}/teams/`
+  );
+}
+
+// ============================================================
+// CERTIFICATE TEMPLATES
+// ============================================================
+
+export function getCertificateTemplates(eventId) {
+  return apiRequest(
+    `/api/certificates/events/${encodeURIComponent(eventId)}/templates/`
+  );
+}
+
+export function uploadCertificateTemplate(eventId, name, file) {
+  const form = new FormData();
+
+  form.append("name", name);
+  form.append("background", file);
+
+  return apiRequest(
+    `/api/certificates/events/${encodeURIComponent(eventId)}/templates/`,
+    "POST",
+    form
+  );
+}
+
+export function saveCertificateLayout(
+  templateId,
+  baseVersion,
+  fields,
+  images
+) {
+  return apiRequest(
+    `/api/certificates/templates/${encodeURIComponent(templateId)}/versions/`,
+    "POST",
+    {
+      base_version: baseVersion,
+      fields,
+      ...(images === undefined ? {} : { images }),
+    }
+  );
+}
+
+export function getCertificateBackground(versionId, signal) {
+  return apiRequest(
+    `/api/certificates/versions/${encodeURIComponent(versionId)}/background/`,
+    "GET",
+    null,
+    "blob",
+    signal
+  );
+}
+
+export function generateCertificatePreview(
+  versionId,
+  sampleName,
+  fields,
+  images
+) {
+  return apiRequest(
+    `/api/certificates/versions/${encodeURIComponent(versionId)}/preview/`,
+    "POST",
+    {
+      sample_name: sampleName,
+      fields,
+      ...(images === undefined ? {} : { images }),
+    },
+    "blob"
+  );
+}
+
+export function getCertificateAssets(templateId, signal) {
+  return apiRequest(
+    `/api/certificates/templates/${encodeURIComponent(templateId)}/assets/`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+
+export function uploadCertificateAsset(templateId, name, file) {
+  const form = new FormData();
+
+  form.append("name", name);
+  form.append("image", file);
+
+  return apiRequest(
+    `/api/certificates/templates/${encodeURIComponent(templateId)}/assets/`,
+    "POST",
+    form
+  );
+}
+
+export function getCertificateAssetImage(assetId, signal) {
+  return apiRequest(
+    `/api/certificates/assets/${encodeURIComponent(assetId)}/image/`,
+    "GET",
+    null,
+    "blob",
+    signal
+  );
+}
+
+export function getCertificateRecipients(
+  eventId,
+  { page = 1, search = "" } = {},
+  signal
+) {
+  const query = new URLSearchParams({
+    page: String(page),
+    search,
+  });
+
+  return apiRequest(
+    `/api/certificates/events/${encodeURIComponent(eventId)}/recipients/?${query}`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+
+export function generateParticipantCertificatePreview(
+  versionId,
+  registrationId,
+  participantName
+) {
+  return apiRequest(
+    `/api/certificates/versions/${encodeURIComponent(versionId)}/recipient-preview/`,
+    "POST",
+    {
+      registration_id: registrationId,
+      participant_name: participantName.trim(),
+    },
+    "blob"
+  );
+}
+export function getCertificateBatches(eventId, page = 1, signal) {
+  return apiRequest(
+    `/api/certificates/events/${encodeURIComponent(eventId)}/batches/?page=${encodeURIComponent(page)}`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+
+export function createCertificateBatch(eventId, payload) {
+  return apiRequest(
+    `/api/certificates/events/${encodeURIComponent(eventId)}/batches/`,
+    "POST",
+    payload
+  );
+}
+
+export function getCertificateBatch(batchId) {
+  return apiRequest(
+    `/api/certificates/batches/${encodeURIComponent(batchId)}/`
+  );
+}
+
+export function getGeneratedCertificateDocument(certificateId) {
+  return apiRequest(
+    `/api/certificates/documents/${encodeURIComponent(certificateId)}/`,
+    "GET",
+    null,
+    "blob"
+  );
+}
+export function publishCertificateBatch(batchId, reviewHash) {
+  return apiRequest(
+    `/api/certificates/batches/${encodeURIComponent(batchId)}/publish/`,
+    "POST",
+    {
+      review_hash: reviewHash,
+      confirm_review: true,
+    }
+  );
+}
+
+export function getMyCertificates(page = 1, signal) {
+  return apiRequest(
+    `/api/certificates/mine/?page=${encodeURIComponent(page)}`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+
+export function getMyCertificateDocument(certificateId) {
+  return apiRequest(
+    `/api/certificates/mine/${encodeURIComponent(certificateId)}/document/`,
+    "GET",
+    null,
+    "blob"
+  );
+}
+export function getCertificateRevocation(certificateId, signal) {
+  return apiRequest(
+    `/api/certificates/documents/${certificateId}/revocation/`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+
+export function revokeCertificate(certificateId, payload) {
+  return apiRequest(
+    `/api/certificates/documents/${certificateId}/revocation/`,
+    "POST",
+    payload
+  );
+}
+
+export function verifyCertificate(certificateId, signal) {
+  return apiRequest(
+    `/api/certificates/verify/${certificateId}/`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+export function getAwardResults(eventId, page = 1, signal) {
+  return apiRequest(
+    `/api/certificates/events/${encodeURIComponent(eventId)}/results/?page=${page}`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+
+export function recordAwardResult(eventId, payload) {
+  return apiRequest(
+    `/api/certificates/events/${encodeURIComponent(eventId)}/results/`,
+    "POST",
+    payload
+  );
+}
+
+export function withdrawAwardResult(resultId, reason) {
+  return apiRequest(
+    `/api/certificates/results/${encodeURIComponent(resultId)}/withdraw/`,
+    "POST",
+    {
+      reason: reason.trim(),
+      confirm: true,
+    }
+  );
+}
+
+export function getAwardResultRecipients(resultId, signal) {
+  return apiRequest(
+    `/api/certificates/results/${encodeURIComponent(resultId)}/recipients/`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+
+export function getAwardTeamCandidates(eventId, signal) {
+  return apiRequest(
+    `/api/organizer/events/${encodeURIComponent(eventId)}/teams/`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+
+export function generateAwardRecipientPreview(
+  versionId,
+  resultId,
+  registrationId,
+  name
+) {
+  return apiRequest(
+    `/api/certificates/versions/${encodeURIComponent(versionId)}/award-preview/`,
+    "POST",
+    {
+      award_result_id: resultId,
+      registration_id: registrationId,
+      participant_name: name.trim(),
+    },
+    "blob"
   );
 }

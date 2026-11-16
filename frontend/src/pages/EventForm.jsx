@@ -1,10 +1,5 @@
-import { useEffect, useState } from "react";
-
-import {
-  Link,
-  useNavigate,
-  useParams,
-} from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
 
 import {
   createEvent,
@@ -14,16 +9,8 @@ import {
   cancelEvent,
 } from "../services/events";
 
-import EventArtwork from "../components/EventArtwork";
-
-import "../styles/organizer.css";
-import "../styles/organizer-v2.css";
-import "../styles/eventEditor.css";
-
-
-// ============================================================
-// EVENTHUB — EVENT FORM INITIAL STATE
-// ============================================================
+import EventCover from "../components/EventCover";
+import "../styles/event-form-editorial.css";
 
 const initialForm = {
   title: "",
@@ -33,21 +20,14 @@ const initialForm = {
   start_datetime: "",
   end_datetime: "",
   registration_deadline: "",
-  capacity: 50,
-
-  // Team event configuration
+  capacity: "50",
   registration_mode: "individual",
-  min_team_size: 2,
-  max_team_size: 6,
-  max_teams: 30,
+  min_team_size: "2",
+  max_team_size: "6",
+  max_teams: "30",
 };
 
-
-// ============================================================
-// EVENT CATEGORY LABELS
-// ============================================================
-
-const categoryLabels = {
+const categories = {
   technical: "Tech & Build",
   cultural: "Culture & Art",
   workshop: "Workshop",
@@ -55,214 +35,298 @@ const categoryLabels = {
   sports: "Sports",
 };
 
+const dateFields = [
+  "start_datetime",
+  "end_datetime",
+  "registration_deadline",
+];
 
-// ============================================================
-// DATE HELPERS
-// ============================================================
+const numberFields = [
+  "capacity",
+  "min_team_size",
+  "max_team_size",
+  "max_teams",
+];
 
-function toLocalInputValue(value) {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
+// Display API timestamps as IST inside datetime-local inputs.
+function inputDate(value) {
+  if (!value || Number.isNaN(new Date(value).getTime())) {
     return "";
   }
 
-  const local = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60000
-  );
-
-  return local.toISOString().slice(0, 16);
+  return new Date(
+    new Date(value).getTime() + 330 * 60000
+  )
+    .toISOString()
+    .slice(0, 16);
 }
 
+// Interpret entered dates as IST, regardless of device timezone.
+function eventDate(value) {
+  return new Date(`${value}:00+05:30`);
+}
 
-function formatPreviewDate(value) {
-  if (!value) return "Choose a date";
+function previewDate(value) {
+  const date = eventDate(value);
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
+  if (!value || Number.isNaN(date.getTime())) {
     return "Choose a date";
   }
 
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Asia/Kolkata",
-  }).format(date);
+  return (
+    new Intl.DateTimeFormat("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "Asia/Kolkata",
+    }).format(date) + " IST"
+  );
 }
 
+function apiError(error) {
+  if (
+    error?.details &&
+    typeof error.details === "object"
+  ) {
+    const lines = Object.entries(error.details).flatMap(
+      ([field, values]) =>
+        (Array.isArray(values) ? values : [values])
+          .filter((value) => typeof value === "string")
+          .map(
+            (value) =>
+              `${field.replaceAll("_", " ")}: ${value}`
+          )
+    );
 
-// ============================================================
-// API ERROR HANDLING
-// ============================================================
+    if (lines.length) return lines.join(" ");
+  }
 
-function formatApiError(error) {
-  if (!error) {
-    return "Something went wrong. Please try again.";
+  return (
+    error?.message ||
+    "Something went wrong. Please try again."
+  );
+}
+
+function validate(form) {
+  if (
+    ![form.title, form.description, form.venue].every(
+      (value) => value.trim()
+    )
+  ) {
+    return "Complete the event title, description and venue.";
   }
 
   if (
-    !error.details ||
-    typeof error.details !== "object"
+    dateFields.some(
+      (field) =>
+        !form[field] ||
+        Number.isNaN(eventDate(form[field]).getTime())
+    )
   ) {
-    return (
-      error.message ||
-      "Something went wrong. Please try again."
-    );
+    return "Enter valid start, end and registration deadline dates.";
   }
 
-  const messages = Object.entries(error.details).flatMap(
-    ([field, values]) => {
-      const entries = Array.isArray(values)
-        ? values
-        : [values];
+  if (
+    eventDate(form.end_datetime) <=
+    eventDate(form.start_datetime)
+  ) {
+    return "The event must end after it starts.";
+  }
 
-      return entries
-        .filter((value) => typeof value === "string")
-        .map((value) => `${field}: ${value}`);
+  if (
+    eventDate(form.registration_deadline) >
+    eventDate(form.start_datetime)
+  ) {
+    return "Registration must close before the event starts.";
+  }
+
+  if (
+    !Number.isInteger(Number(form.capacity)) ||
+    Number(form.capacity) < 1
+  ) {
+    return "Maximum participants must be a whole number of at least 1.";
+  }
+
+  if (form.registration_mode === "team") {
+    const min = Number(form.min_team_size);
+    const max = Number(form.max_team_size);
+    const teams = Number(form.max_teams);
+
+    if (!Number.isInteger(min) || min < 2) {
+      return "Minimum team size must be at least 2.";
     }
-  );
 
+    if (!Number.isInteger(max) || max < min) {
+      return "Maximum team size must be at least the minimum team size.";
+    }
+
+    if (!Number.isInteger(teams) || teams < 1) {
+      return "Maximum teams must be a whole number of at least 1.";
+    }
+
+    if (max > Number(form.capacity)) {
+      return "Participant capacity must be at least the maximum team size.";
+    }
+  }
+
+  return "";
+}
+
+function payload(form) {
+  const result = {
+    ...form,
+    title: form.title.trim(),
+    description: form.description.trim(),
+    venue: form.venue.trim(),
+  };
+
+  dateFields.forEach((field) => {
+    result[field] = eventDate(form[field]).toISOString();
+  });
+
+  numberFields.forEach((field) => {
+    result[field] = Number(form[field]);
+  });
+
+  return result;
+}
+
+function Field({
+  name,
+  label,
+  type = "text",
+  form,
+  onChange,
+  disabled,
+  ...props
+}) {
   return (
-    messages.join(" ") ||
-    error.message ||
-    "Something went wrong."
+    <div className="ef-field">
+      <label htmlFor={`ef-${name}`}>{label}</label>
+
+      <input
+        id={`ef-${name}`}
+        name={name}
+        type={type}
+        value={form[name]}
+        onChange={onChange}
+        disabled={disabled}
+        required
+        {...props}
+      />
+    </div>
   );
 }
 
+function SectionHeading({ number, title, children }) {
+  return (
+    <div className="ef-section-heading">
+      <span>{number}</span>
 
-// ============================================================
-// MAIN EVENT FORM COMPONENT
-// ============================================================
+      <div>
+        <h2>{title}</h2>
+        <p>{children}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function EventForm() {
   const { id } = useParams();
 
+  return <EventEditor key={id || "new"} id={id} />;
+}
+
+function EventEditor({ id }) {
   const navigate = useNavigate();
+  const editing = Boolean(id);
 
-  const isEditing = Boolean(id);
+  const [form, setForm] = useState({ ...initialForm });
+  const [saved, setSaved] = useState(null);
+  const [status, setStatus] = useState("draft");
 
-  // ==========================================================
-  // STATE
-  // ==========================================================
-
-  const [form, setForm] = useState(initialForm);
-
-  const [savedForm, setSavedForm] = useState(null);
-
-  const [eventStatus, setEventStatus] = useState("draft");
-
-  const [loading, setLoading] = useState(isEditing);
-
+  const [loading, setLoading] = useState(editing);
   const [loadError, setLoadError] = useState("");
+  const [revision, setRevision] = useState(0);
 
-  const [saving, setSaving] = useState(false);
-
+  const [operation, setOperation] = useState("");
   const [error, setError] = useState("");
-
   const [success, setSuccess] = useState("");
 
   const [previewOpen, setPreviewOpen] = useState(true);
 
-
-  // ==========================================================
-  // LOAD EXISTING EVENT
-  // ==========================================================
+  const busy = useRef(false);
+  const active = useRef(false);
+  const feedback = useRef(null);
 
   useEffect(() => {
-    if (!isEditing) {
-      setForm({ ...initialForm });
-      setSavedForm(null);
-      setEventStatus("draft");
-      setLoadError("");
-      setError("");
-      setSuccess("");
-      setLoading(false);
-      return;
-    }
-
-    let active = true;
-
-    async function loadEvent() {
-      setLoading(true);
-      setLoadError("");
-
-      try {
-        const event = await getOrganizerEvent(id);
-
-        if (!active) return;
-
-        const loadedForm = {
-          title: event.title,
-          description: event.description,
-          category: event.category,
-          venue: event.venue,
-
-          start_datetime: toLocalInputValue(
-            event.start_datetime
-          ),
-
-          end_datetime: toLocalInputValue(
-            event.end_datetime
-          ),
-
-          registration_deadline: toLocalInputValue(
-            event.registration_deadline
-          ),
-
-          capacity: event.capacity,
-
-          // Load existing team configuration
-          registration_mode:
-            event.registration_mode || "individual",
-
-          min_team_size:
-            event.min_team_size ?? 2,
-
-          max_team_size:
-            event.max_team_size ?? 6,
-
-          max_teams:
-            event.max_teams ?? 30,
-        };
-
-        setForm(loadedForm);
-
-        setSavedForm({ ...loadedForm });
-
-        setEventStatus(event.status);
-
-        setError("");
-        setSuccess("");
-      } catch (err) {
-        if (active) {
-          setLoadError(formatApiError(err));
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadEvent();
+    active.current = true;
 
     return () => {
-      active = false;
+      active.current = false;
     };
-  }, [id, isEditing]);
+  }, []);
 
+  useEffect(() => {
+    if (!editing) return;
 
-  // ==========================================================
-  // HANDLE INPUT CHANGES
-  // ==========================================================
+    let current = true;
 
-  function handleChange(event) {
+    setLoading(true);
+    setLoadError("");
+
+    getOrganizerEvent(id)
+      .then((event) => {
+        if (!current) return;
+
+        const loaded = { ...initialForm };
+
+        Object.keys(loaded).forEach((field) => {
+          if (event[field] != null) {
+            loaded[field] = String(event[field]);
+          }
+        });
+
+        dateFields.forEach((field) => {
+          loaded[field] = inputDate(event[field]);
+        });
+
+        setForm(loaded);
+        setSaved({ ...loaded });
+        setStatus(event.status);
+      })
+      .catch((err) => {
+        if (current) setLoadError(apiError(err));
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+
+    return () => {
+      current = false;
+    };
+  }, [id, editing, revision]);
+
+  useEffect(() => {
+    if (error || success) {
+      feedback.current?.focus();
+    }
+  }, [error, success]);
+
+  const cancelled = status === "cancelled";
+  const saving = Boolean(operation);
+
+  const dirty =
+    saved !== null &&
+    JSON.stringify(form) !== JSON.stringify(saved);
+
+  const team = form.registration_mode === "team";
+  const disabled = saving || cancelled;
+  const statusLabel = editing ? status : "New draft";
+
+  function change(event) {
     const { name, value } = event.target;
 
     setForm((previous) => ({
@@ -274,1506 +338,639 @@ export default function EventForm() {
     setSuccess("");
   }
 
+  const fieldProps = {
+    form,
+    onChange: change,
+    disabled,
+  };
 
-  // ==========================================================
-  // FORM VALIDATION
-  // ==========================================================
-
-  function validateForm() {
-    const start = new Date(form.start_datetime);
-
-    const end = new Date(form.end_datetime);
-
-    const deadline = new Date(
-      form.registration_deadline
-    );
-
-    // Required information
-
-    if (
-      !form.title.trim() ||
-      !form.description.trim() ||
-      !form.venue.trim()
-    ) {
-      return "Please complete all event information.";
-    }
-
-    // Dates
-
-    if (
-      !form.start_datetime ||
-      !form.end_datetime ||
-      !form.registration_deadline ||
-      Number.isNaN(start.getTime()) ||
-      Number.isNaN(end.getTime()) ||
-      Number.isNaN(deadline.getTime())
-    ) {
-      return "Please enter valid event dates.";
-    }
-
-    if (end <= start) {
-      return "The event must end after it starts.";
-    }
-
-    if (deadline > start) {
-      return (
-        "Registration must close before " +
-        "the event starts."
-      );
-    }
-
-    // Participant capacity
-
-    const capacity = Number(form.capacity);
-
-    if (
-      !Number.isInteger(capacity) ||
-      capacity < 1
-    ) {
-      return (
-        "Capacity must be a whole number " +
-        "of at least 1."
-      );
-    }
-
-    // ========================================================
-    // TEAM EVENT VALIDATION
-    // ========================================================
-
-    if (form.registration_mode === "team") {
-      const minTeamSize = Number(
-        form.min_team_size
-      );
-
-      const maxTeamSize = Number(
-        form.max_team_size
-      );
-
-      const maxTeams = Number(
-        form.max_teams
-      );
-
-      if (
-        !Number.isInteger(minTeamSize) ||
-        minTeamSize < 2
-      ) {
-        return (
-          "Minimum team size must be at least 2."
-        );
-      }
-
-      if (
-        !Number.isInteger(maxTeamSize) ||
-        maxTeamSize < minTeamSize
-      ) {
-        return (
-          "Maximum team size must be greater " +
-          "than or equal to minimum team size."
-        );
-      }
-
-      if (
-        !Number.isInteger(maxTeams) ||
-        maxTeams < 1
-      ) {
-        return (
-          "Maximum teams must be at least 1."
-        );
-      }
-
-      if (maxTeamSize > capacity) {
-        return (
-          "Total participant capacity must be " +
-          "at least as large as maximum team size."
-        );
-      }
-    }
-
-    return "";
-  }
-
-
-  // ==========================================================
-  // BUILD BACKEND PAYLOAD
-  // ==========================================================
-
-  function buildPayload() {
-    return {
-      title: form.title.trim(),
-
-      description: form.description.trim(),
-
-      category: form.category,
-
-      venue: form.venue.trim(),
-
-      start_datetime: new Date(
-        form.start_datetime
-      ).toISOString(),
-
-      end_datetime: new Date(
-        form.end_datetime
-      ).toISOString(),
-
-      registration_deadline: new Date(
-        form.registration_deadline
-      ).toISOString(),
-
-      capacity: Number(form.capacity),
-
-      // Individual or team
-      registration_mode: form.registration_mode,
-
-      // Team configuration
-      min_team_size: Number(
-        form.min_team_size
-      ),
-
-      max_team_size: Number(
-        form.max_team_size
-      ),
-
-      max_teams: Number(
-        form.max_teams
-      ),
-    };
-  }
-
-
-  // ==========================================================
-  // EVENT STATE
-  // ==========================================================
-
-  const hasUnsavedChanges =
-    isEditing &&
-    savedForm !== null &&
-    JSON.stringify(form) !== JSON.stringify(savedForm);
-
-  const isCancelled =
-    eventStatus === "cancelled";
-
-  const isTeamEvent =
-    form.registration_mode === "team";
-
-  const canPublish =
-    isEditing &&
-    eventStatus === "draft" &&
-    !hasUnsavedChanges &&
-    !saving;
-
-
-  // ==========================================================
-  // SAVE DRAFT / SAVE CHANGES
-  // ==========================================================
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-
-    if (saving || isCancelled) return;
+  async function perform(action) {
+    if (busy.current || cancelled) return;
+    if (action !== "save" && !editing) return;
 
     setError("");
     setSuccess("");
 
-    const validationError = validateForm();
-
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      const payload = buildPayload();
-
-      if (isEditing) {
-        await updateEvent(id, payload);
-
-        setSavedForm({ ...form });
-
-        setSuccess(
-          "Your event changes have been saved successfully."
-        );
-      } else {
-        const createdEvent = await createEvent(
-          payload
-        );
-
-        navigate(
-          `/organizer/events/${createdEvent.id}/edit`,
-          {
-            replace: true,
-
-            state: {
-              created: true,
-            },
-          }
-        );
-      }
-    } catch (err) {
-      setError(formatApiError(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-
-  // ==========================================================
-  // PUBLISH EVENT
-  // ==========================================================
-
-  async function handlePublish() {
-    if (!isEditing || saving || isCancelled) {
-      return;
-    }
-
-    setError("");
-    setSuccess("");
-
-    // Prevent publishing unsaved form data.
-
-    if (hasUnsavedChanges) {
+    if (
+      action === "publish" &&
+      (dirty || status !== "draft")
+    ) {
       setError(
-        "You have unsaved changes. " +
-        "Save your event before publishing."
+        "Save your changes before publishing the draft."
       );
-
       return;
     }
 
-    const validationError = validateForm();
+    if (action !== "cancel") {
+      const problem = validate(form);
 
-    if (validationError) {
-      setError(validationError);
-      return;
+      if (problem) {
+        setError(problem);
+        return;
+      }
     }
 
-    const confirmed = window.confirm(
-      "Publish this event? Students will be able " +
-      "to discover and register for it."
-    );
-
-    if (!confirmed) return;
-
-    setSaving(true);
-
-    try {
-      await publishEvent(id);
-
-      setEventStatus("published");
-
-      setSuccess(
-        "Your event is now published " +
-        "and visible to students!"
-      );
-    } catch (err) {
-      setError(formatApiError(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-
-  // ==========================================================
-  // CANCEL EVENT
-  // ==========================================================
-
-  async function handleCancel() {
     if (
-      !isEditing ||
-      saving ||
-      isCancelled
+      action === "publish" &&
+      !window.confirm(
+        "Publish this event? Students will be able to discover and register for it."
+      )
     ) {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to cancel this event? " +
-      "This action may affect registered participants."
-    );
+    if (
+      action === "cancel" &&
+      !window.confirm(
+        "Cancel this event? This may affect registered participants."
+      )
+    ) {
+      return;
+    }
 
-    if (!confirmed) return;
-
-    setError("");
-    setSuccess("");
-    setSaving(true);
+    busy.current = true;
+    setOperation(action);
 
     try {
-      await cancelEvent(id);
+      if (action === "save") {
+        if (editing) {
+          await updateEvent(id, payload(form));
 
-      setEventStatus("cancelled");
+          if (!active.current) return;
 
-      setSuccess(
-        "Event cancelled successfully."
-      );
+          setSaved({ ...form });
+          setSuccess(
+            "Your event changes have been saved."
+          );
+        } else {
+          const created = await createEvent(
+            payload(form)
+          );
+
+          if (!active.current) return;
+
+          navigate(
+            `/organizer/events/${created.id}/edit`,
+            {
+              replace: true,
+              state: { created: true },
+            }
+          );
+        }
+      } else if (action === "publish") {
+        await publishEvent(id);
+
+        if (!active.current) return;
+
+        setStatus("published");
+        setSuccess("Event published successfully.");
+      } else {
+        await cancelEvent(id);
+
+        if (!active.current) return;
+
+        setStatus("cancelled");
+        setSuccess("Event cancelled successfully.");
+      }
     } catch (err) {
-      setError(formatApiError(err));
+      if (active.current) setError(apiError(err));
     } finally {
-      setSaving(false);
+      busy.current = false;
+
+      if (active.current) setOperation("");
     }
   }
 
-
-  // ==========================================================
-  // LOADING
-  // ==========================================================
-
-  if (loading) {
+  if (loading || loadError) {
     return (
-      <div
-        className="organizer-loading"
-        role="status"
-      >
-        Loading event details...
-      </div>
-    );
-  }
-
-
-  // ==========================================================
-  // LOAD ERROR
-  // ==========================================================
-
-  if (loadError) {
-    return (
-      <div
-        className="organizer-error"
-        role="alert"
-      >
-        <p>{loadError}</p>
-
-        <Link to="/organizer">
-          Return to Dashboard →
+      <main className="ef-page">
+        <Link className="ef-back" to="/organizer">
+          ← Back to dashboard
         </Link>
-      </div>
+
+        <div
+          className="ef-panel ef-load"
+          role={loadError ? "alert" : "status"}
+        >
+          {loadError || "Loading event details…"}
+
+          {loadError && (
+            <button
+              className="ef-button"
+              onClick={() =>
+                setRevision((value) => value + 1)
+              }
+            >
+              Try again
+            </button>
+          )}
+        </div>
+      </main>
     );
   }
-
-
-  // ==========================================================
-  // EVENT EDITOR PAGE
-  // ==========================================================
 
   return (
-    <div className="event-editor-page">
-
-      {/* BACK LINK */}
-
-      <Link
-        to="/organizer"
-        className="organizer-back-link"
-      >
-        ← Back to Dashboard
+    <main className="ef-page">
+      <Link className="ef-back" to="/organizer">
+        ← Back to dashboard
       </Link>
 
-
-      {/* ====================================================
-          PAGE HEADER
-      ==================================================== */}
-
-      <section className="event-editor-header">
-
+      <header className="ef-header">
         <div>
-          <span className="org-eyebrow">
-            {isEditing
-              ? "MANAGE YOUR EXPERIENCE"
-              : "CREATE SOMETHING NEW"}
+          <span className="ef-eyebrow">
+            Event setup
           </span>
 
           <h1>
-            {isEditing ? (
-              <>
-                Make it
-                <br />
-                <span>even better.</span>
-              </>
-            ) : (
-              <>
-                Let's make it
-                <br />
-                <span>unforgettable.</span>
-              </>
-            )}
+            {editing
+              ? "Manage your event"
+              : "Create an event"}
+            <span>.</span>
           </h1>
 
           <p>
-            {isEditing
-              ? "Refine your event details and keep your campus community informed."
-              : "Every great campus experience starts with an idea. Bring yours to life."}
+            {editing
+              ? "Keep your event details and registration settings up to date."
+              : "Start with the details. Save a draft, then review before publishing."}
           </p>
         </div>
 
-        <div className="event-editor-header-status">
-
-          <span className="event-editor-status-label">
-            EVENT STATUS
-          </span>
-
-          <span
-            className={`event-editor-status event-editor-status-${eventStatus}`}
-          >
-            <span className="event-editor-status-dot" />
-
-            {isEditing
-              ? eventStatus
-              : "New draft"}
-          </span>
-
-        </div>
-
-      </section>
-
-
-      {/* ====================================================
-          FEEDBACK
-      ==================================================== */}
-
-      {error && (
-        <div
-          className="organizer-error event-editor-message"
-          role="alert"
+        <span
+          className={`ef-status ef-status-${status}`}
         >
-          {error}
+          ● {statusLabel}
+        </span>
+      </header>
+
+      <nav
+        className="ef-nav"
+        aria-label="Event form sections"
+      >
+        <a href="#ef-details">
+          <span>01</span> Details
+        </a>
+
+        <a href="#ef-schedule">
+          <span>02</span> Schedule
+        </a>
+
+        <a href="#ef-registration">
+          <span>03</span> Registration
+        </a>
+      </nav>
+
+      {(error || success) && (
+        <div
+          ref={feedback}
+          tabIndex={-1}
+          className={`ef-message ${
+            error ? "ef-error" : "ef-success"
+          }`}
+          role={error ? "alert" : "status"}
+        >
+          {error || success}
         </div>
       )}
 
-      {success && (
-        <div
-          className="organizer-success event-editor-message"
-          role="status"
-        >
-          {success}
-        </div>
+      {dirty && !cancelled && (
+        <p className="ef-unsaved" role="status">
+          Unsaved changes. Save before publishing.
+        </p>
       )}
 
-      {hasUnsavedChanges && !isCancelled && (
-        <div
-          className="event-editor-unsaved"
-          role="status"
-        >
-          ● You have unsaved changes.
-          Save your changes before publishing.
-        </div>
+      {cancelled && (
+        <p className="ef-message ef-info">
+          This event has been cancelled and can no
+          longer be edited.
+        </p>
       )}
 
-
-      {/* ====================================================
-          MAIN EDITOR
-      ==================================================== */}
-
-      <div className="event-editor-layout">
-
-        {/* ==================================================
-            EVENT FORM
-        ================================================== */}
-
+      <div className="ef-layout">
         <form
-          id="event-editor-form"
-          className="event-form event-editor-form"
-          onSubmit={handleSubmit}
+          id="ef-form"
+          className="ef-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            perform("save");
+          }}
         >
-
-
-          {/* ================================================
-              SECTION 01 — EVENT BASICS
-          ================================================ */}
-
-          <section className="event-form-section">
-
-            <div className="event-form-section-heading">
-
-              <span>01</span>
-
-              <div>
-                <h2>Event basics</h2>
-
-                <p>
-                  Give your event a name and a story.
-                </p>
-              </div>
-
-            </div>
-
-
-            <div className="event-form-fields">
-
-              {/* EVENT TITLE */}
-
-              <div className="event-field">
-
-                <label htmlFor="title">
-                  Event title
-                </label>
-
-                <input
-                  id="title"
-                  name="title"
-                  type="text"
-                  value={form.title}
-                  onChange={handleChange}
-                  placeholder="e.g. CodeSprint 2026"
-                  maxLength={200}
-                  required
-                  disabled={saving || isCancelled}
-                />
-
-                <span className="event-editor-field-hint">
-                  Choose a memorable name that
-                  students can easily recognize.
-                </span>
-
-              </div>
-
-
-              {/* DESCRIPTION */}
-
-              <div className="event-field">
-
-                <label htmlFor="description">
-                  Event description
-                </label>
-
-                <textarea
-                  id="description"
-                  name="description"
-                  value={form.description}
-                  onChange={handleChange}
-                  placeholder="What's happening? What can students expect? Why should they join?"
-                  rows={5}
-                  required
-                  disabled={saving || isCancelled}
-                />
-
-                <span className="event-editor-field-hint">
-                  Explain what participants will experience.
-                </span>
-
-              </div>
-
-
-              {/* CATEGORY */}
-
-              <div className="event-field">
-
-                <label htmlFor="category">
-                  Event category
-                </label>
-
-                <select
-                  id="category"
-                  name="category"
-                  value={form.category}
-                  onChange={handleChange}
-                  disabled={saving || isCancelled}
-                >
-
-                  <option value="technical">
-                    Tech & Build
-                  </option>
-
-                  <option value="cultural">
-                    Culture & Art
-                  </option>
-
-                  <option value="workshop">
-                    Workshop
-                  </option>
-
-                  <option value="seminar">
-                    Seminar
-                  </option>
-
-                  <option value="sports">
-                    Sports
-                  </option>
-
-                </select>
-
-              </div>
-
-            </div>
-
-          </section>
-
-
-          {/* ================================================
-              SECTION 02 — LOCATION & SCHEDULE
-          ================================================ */}
-
-          <section className="event-form-section">
-
-            <div className="event-form-section-heading">
-
-              <span>02</span>
-
-              <div>
-                <h2>Where & when</h2>
-
-                <p>
-                  Set the stage for your experience.
-                </p>
-              </div>
-
-            </div>
-
-
-            <div className="event-form-fields">
-
-              {/* VENUE */}
-
-              <div className="event-field">
-
-                <label htmlFor="venue">
-                  Venue
-                </label>
-
-                <input
-                  id="venue"
-                  name="venue"
-                  type="text"
-                  value={form.venue}
-                  onChange={handleChange}
-                  placeholder="e.g. Innovation Lab, Block B"
-                  maxLength={200}
-                  required
-                  disabled={saving || isCancelled}
-                />
-
-                <span className="event-editor-field-hint">
-                  Enter the location where
-                  students should arrive.
-                </span>
-
-              </div>
-
-
-              {/* EVENT DATES */}
-
-              <div className="event-field-grid">
-
-                <div className="event-field">
-
-                  <label htmlFor="start_datetime">
-                    Event starts
-                  </label>
-
-                  <input
-                    id="start_datetime"
-                    name="start_datetime"
-                    type="datetime-local"
-                    value={form.start_datetime}
-                    onChange={handleChange}
-                    required
-                    disabled={saving || isCancelled}
-                  />
-
-                </div>
-
-
-                <div className="event-field">
-
-                  <label htmlFor="end_datetime">
-                    Event ends
-                  </label>
-
-                  <input
-                    id="end_datetime"
-                    name="end_datetime"
-                    type="datetime-local"
-                    value={form.end_datetime}
-                    onChange={handleChange}
-                    required
-                    disabled={saving || isCancelled}
-                  />
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </section>
-
-
-          {/* ================================================
-              SECTION 03 — REGISTRATION TYPE
-          ================================================ */}
-
-          <section className="event-form-section">
-
-            <div className="event-form-section-heading">
-
-              <span>03</span>
-
-              <div>
-                <h2>Registration type</h2>
-
-                <p>
-                  Choose how students will participate
-                  in your event.
-                </p>
-              </div>
-
-            </div>
-
-
-            {/* INDIVIDUAL OR TEAM */}
-
-            <div className="event-editor-registration-options">
-
-              {/* INDIVIDUAL */}
-
-              <label
-                className={`event-editor-registration-option ${
-                  form.registration_mode === "individual"
-                    ? "selected"
-                    : ""
-                }`}
-              >
-
-                <input
-                  type="radio"
-                  name="registration_mode"
-                  value="individual"
-                  checked={
-                    form.registration_mode === "individual"
-                  }
-                  onChange={handleChange}
-                  disabled={
-                    saving ||
-                    isCancelled ||
-                    (isEditing && eventStatus !== "draft")
-                  }
-                />
-
-                <span
-                  className="registration-option-icon"
-                  aria-hidden="true"
-                >
-                  ◉
-                </span>
-
-                <strong>Individual</strong>
-
-                <small>
-                  Students register separately
-                  and receive their own tickets.
-                </small>
-
+          <section
+            className="ef-panel ef-section"
+            id="ef-details"
+          >
+            <SectionHeading
+              number="01"
+              title="Event details"
+            >
+              Give your event a name and a description.
+            </SectionHeading>
+
+            <Field
+              name="title"
+              label="Event title"
+              maxLength={200}
+              placeholder="e.g. CodeSprint 2026"
+              {...fieldProps}
+            />
+
+            <div className="ef-field">
+              <label htmlFor="ef-description">
+                Description
               </label>
 
+              <textarea
+                id="ef-description"
+                name="description"
+                rows={4}
+                value={form.description}
+                onChange={change}
+                disabled={disabled}
+                required
+                placeholder="What will students experience?"
+              />
+            </div>
 
-              {/* TEAM */}
-
-              <label
-                className={`event-editor-registration-option ${
-                  form.registration_mode === "team"
-                    ? "selected"
-                    : ""
-                }`}
-              >
-
-                <input
-                  type="radio"
-                  name="registration_mode"
-                  value="team"
-                  checked={
-                    form.registration_mode === "team"
-                  }
-                  onChange={handleChange}
-                  disabled={
-                    saving ||
-                    isCancelled ||
-                    (isEditing && eventStatus !== "draft")
-                  }
-                />
-
-                <span
-                  className="registration-option-icon"
-                  aria-hidden="true"
-                >
-                  ♧
-                </span>
-
-                <strong>Team / Group</strong>
-
-                <small>
-                  Students participate together
-                  in teams with configurable limits.
-                </small>
-
+            <div className="ef-field">
+              <label htmlFor="ef-category">
+                Category
               </label>
 
-            </div>
-
-
-            {/* ==============================================
-                TEAM CONFIGURATION
-            ============================================== */}
-
-            {isTeamEvent && (
-
-              <div className="event-editor-team-settings">
-
-                <div className="event-editor-team-heading">
-
-                  <span aria-hidden="true">✳</span>
-
-                  <div>
-                    <h3>Team configuration</h3>
-
-                    <p>
-                      Set how many students can
-                      participate in each team.
-                    </p>
-                  </div>
-
-                </div>
-
-
-                {/* TEAM LIMITS */}
-
-                <div className="event-field-grid">
-
-                  {/* MINIMUM TEAM SIZE */}
-
-                  <div className="event-field">
-
-                    <label htmlFor="min_team_size">
-                      Minimum members per team
-                    </label>
-
-                    <input
-                      id="min_team_size"
-                      name="min_team_size"
-                      type="number"
-                      min="2"
-                      step="1"
-                      value={form.min_team_size}
-                      onChange={handleChange}
-                      required
-                      disabled={saving || isCancelled}
-                    />
-
-                  </div>
-
-
-                  {/* MAXIMUM TEAM SIZE */}
-
-                  <div className="event-field">
-
-                    <label htmlFor="max_team_size">
-                      Maximum members per team
-                    </label>
-
-                    <input
-                      id="max_team_size"
-                      name="max_team_size"
-                      type="number"
-                      min="2"
-                      step="1"
-                      value={form.max_team_size}
-                      onChange={handleChange}
-                      required
-                      disabled={saving || isCancelled}
-                    />
-
-                  </div>
-
-
-                  {/* MAXIMUM TEAMS */}
-
-                  <div className="event-field">
-
-                    <label htmlFor="max_teams">
-                      Maximum teams
-                    </label>
-
-                    <input
-                      id="max_teams"
-                      name="max_teams"
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={form.max_teams}
-                      onChange={handleChange}
-                      required
-                      disabled={saving || isCancelled}
-                    />
-
-                  </div>
-
-                </div>
-
-
-                {/* ==========================================
-                    TEAM SUMMARY
-                ========================================== */}
-
-                <div className="event-editor-team-summary">
-
-                  <span>
-                    EVENT CONFIGURATION
-                  </span>
-
-
-                  <div>
-                    <strong>
-                      {Number(form.max_teams) || 0}
-                    </strong>
-
-                    <span>
-                      Maximum teams
-                    </span>
-                  </div>
-
-
-                  <div>
-                    <strong>
-                      {Number(form.min_team_size) || 0}
-                      {" – "}
-                      {Number(form.max_team_size) || 0}
-                    </strong>
-
-                    <span>
-                      Members per team
-                    </span>
-                  </div>
-
-
-                  <div>
-                    <strong>
-                      {Number(form.capacity) || 0}
-                    </strong>
-
-                    <span>
-                      Total student capacity
-                    </span>
-                  </div>
-
-                </div>
-
-
-                {/* ==========================================
-                    TEAM FEATURE NOTICE
-                ========================================== */}
-
-                <div className="event-editor-info-note">
-  <span aria-hidden="true">✳</span>
-
-  <p>
-    <strong>Team registration is enabled.</strong>
-    <br />
-    Students can create teams, invite classmates,
-    and confirm their teams once the minimum
-    number of members has joined.
-  </p>
-</div>
-
-              </div>
-
-            )}
-
-          </section>
-
-
-          {/* ================================================
-              SECTION 04 — REGISTRATION SETTINGS
-          ================================================ */}
-
-          <section className="event-form-section">
-
-            <div className="event-form-section-heading">
-
-              <span>04</span>
-
-              <div>
-                <h2>Registration settings</h2>
-
-                <p>
-                  Decide when registrations close
-                  and how many students can join.
-                </p>
-              </div>
-
-            </div>
-
-
-            <div className="event-form-fields">
-
-              <div className="event-field-grid">
-
-                {/* REGISTRATION DEADLINE */}
-
-                <div className="event-field">
-
-                  <label htmlFor="registration_deadline">
-                    Registration deadline
-                  </label>
-
-                  <input
-                    id="registration_deadline"
-                    name="registration_deadline"
-                    type="datetime-local"
-                    value={form.registration_deadline}
-                    onChange={handleChange}
-                    required
-                    disabled={saving || isCancelled}
-                  />
-
-                </div>
-
-
-                {/* PARTICIPANT CAPACITY */}
-
-                <div className="event-field">
-
-                  <label htmlFor="capacity">
-                    Maximum participants
-                  </label>
-
-                  <input
-                    id="capacity"
-                    name="capacity"
-                    type="number"
-                    value={form.capacity}
-                    onChange={handleChange}
-                    min="1"
-                    step="1"
-                    required
-                    disabled={saving || isCancelled}
-                  />
-
-                </div>
-
-              </div>
-
-
-              {/* CAPACITY INFORMATION */}
-
-              <div className="event-editor-info-note">
-
-                <span aria-hidden="true">
-                  ✳
-                </span>
-
-                <p>
-                  {isTeamEvent
-                    ? (
-                      <>
-                        <strong>
-                          Team event capacity:
-                        </strong>
-
-                        {" "}
-
-                        Maximum participants is the
-                        total number of students,
-                        not the number of teams.
-
-                        Both team limits and student
-                        capacity will be enforced
-                        during team registration.
-                      </>
-                    )
-                    : (
-                      <>
-                        Registration must close before
-                        the event begins.
-
-                        Once students register,
-                        capacity cannot be reduced
-                        below confirmed registrations.
-                      </>
-                    )}
-                </p>
-
-              </div>
-
-            </div>
-
-          </section>
-
-
-          {/* ================================================
-              FORM ACTIONS
-          ================================================ */}
-
-          <div className="event-editor-actions">
-
-            {/* SAVE */}
-
-            {!isCancelled && (
-
-              <button
-                type="submit"
-                className="org-button-primary"
-                disabled={saving}
+              <select
+                id="ef-category"
+                name="category"
+                value={form.category}
+                onChange={change}
+                disabled={disabled}
               >
-                {saving
-                  ? "Saving..."
-                  : isEditing
-                    ? "Save Changes"
-                    : "Save as Draft"}
-
-                {!saving && (
-                  <span aria-hidden="true">
-                    ↗
-                  </span>
+                {Object.entries(categories).map(
+                  ([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  )
                 )}
-              </button>
+              </select>
+            </div>
+          </section>
 
-            )}
+          <section
+            className="ef-panel ef-section"
+            id="ef-schedule"
+          >
+            <SectionHeading
+              number="02"
+              title="Schedule & location"
+            >
+              Set the time and place for your event.
+            </SectionHeading>
 
+            <Field
+              name="venue"
+              label="Venue"
+              maxLength={200}
+              placeholder="e.g. Innovation Lab, Block B"
+              {...fieldProps}
+            />
 
-            {/* PUBLISH */}
+            <div className="ef-field-grid">
+              <Field
+                name="start_datetime"
+                label="Event starts"
+                type="datetime-local"
+                {...fieldProps}
+              />
 
-            {isEditing &&
-              eventStatus === "draft" && (
+              <Field
+                name="end_datetime"
+                label="Event ends"
+                type="datetime-local"
+                {...fieldProps}
+              />
+            </div>
 
-                <button
-                  type="button"
-                  className="event-editor-publish-button"
-                  onClick={handlePublish}
-                  disabled={!canPublish}
-                    title={
-      hasUnsavedChanges
-        ? "Save your changes before publishing"
-        : "Publish this event"
-    }
-  >
-                 Publish Event →
-  </button>
-)}
+            <p className="ef-help">
+              All dates and times are in IST
+              (UTC+05:30).
+            </p>
+          </section>
 
+          <section
+            className="ef-panel ef-section"
+            id="ef-registration"
+          >
+            <SectionHeading
+              number="03"
+              title="Registration"
+            >
+              Choose how students will participate and
+              set registration limits.
+            </SectionHeading>
 
-            {/* CANCEL EVENT */}
+            <fieldset
+              className="ef-modes"
+              disabled={
+                disabled ||
+                (editing && status !== "draft")
+              }
+            >
+              <legend>Registration type</legend>
 
-            {isEditing &&
-              !isCancelled && (
+              <div className="ef-mode-grid">
+                {[
+                  [
+                    "individual",
+                    "Individual",
+                    "Students register separately and receive their own tickets.",
+                  ],
+                  [
+                    "team",
+                    "Team / Group",
+                    "Students participate together in teams with configurable limits.",
+                  ],
+                ].map(([value, label, hint]) => (
+                  <label
+                    key={value}
+                    className={`ef-mode ${
+                      form.registration_mode === value
+                        ? "ef-mode-selected"
+                        : ""
+                    }`}
+                  >
+                    <span>
+                      <input
+                        type="radio"
+                        name="registration_mode"
+                        value={value}
+                        checked={
+                          form.registration_mode ===
+                          value
+                        }
+                        onChange={change}
+                      />
 
-                <button
-                  type="button"
-                  className="event-editor-cancel-button"
-                  onClick={handleCancel}
-                  disabled={saving}
-                >
-                  Cancel Event
-                </button>
+                      {label}
+                    </span>
 
-              )}
-
-
-            {/* CANCELLED NOTICE */}
-
-            {isCancelled && (
-
-              <div className="event-editor-cancelled-note">
-
-                This event has been cancelled
-                and can no longer be edited.
-
+                    <small>{hint}</small>
+                  </label>
+                ))}
               </div>
+            </fieldset>
 
+            {editing && status !== "draft" && (
+              <p className="ef-help">
+                Registration type cannot change after
+                publication.
+              </p>
             )}
 
-          </div>
+            {team && (
+              <div className="ef-team-settings">
+                <h3>Team configuration</h3>
 
+                <div className="ef-field-grid">
+                  <Field
+                    name="min_team_size"
+                    label="Minimum members per team"
+                    type="number"
+                    min={2}
+                    step={1}
+                    {...fieldProps}
+                  />
 
-          {/* SAVE INFORMATION */}
+                  <Field
+                    name="max_team_size"
+                    label="Maximum members per team"
+                    type="number"
+                    min={2}
+                    step={1}
+                    {...fieldProps}
+                  />
 
-          <p className="event-editor-save-hint">
-  {!isEditing
-    ? "Your event will be saved as a private draft. You can review it before publishing."
-    : eventStatus === "draft"
-      ? "Draft events are not visible to students until published."
-      : eventStatus === "published"
-        ? "Changes to a published event will be saved when you select Save Changes."
-        : "This event is no longer accepting changes."}
-</p>
+                  <Field
+                    name="max_teams"
+                    label="Maximum teams"
+                    type="number"
+                    min={1}
+                    step={1}
+                    {...fieldProps}
+                  />
+                </div>
 
+                <p className="ef-help">
+                  Students create teams, invite
+                  classmates and confirm once the
+                  minimum team size is reached.
+                </p>
+              </div>
+            )}
+
+            <div className="ef-field-grid">
+              <Field
+                name="registration_deadline"
+                label="Registration deadline"
+                type="datetime-local"
+                {...fieldProps}
+              />
+
+              <Field
+                name="capacity"
+                label="Maximum participants"
+                type="number"
+                min={1}
+                step={1}
+                {...fieldProps}
+              />
+            </div>
+
+            <p className="ef-help">
+              Registrations must close before the
+              event starts. Capacity cannot be reduced
+              below active registrations.
+            </p>
+
+            {team && (
+              <p className="ef-info">
+                Maximum participants counts students,
+                not teams. Both student capacity and
+                team limits apply.
+              </p>
+            )}
+          </section>
         </form>
 
-
-        {/* ==================================================
-            LIVE PREVIEW
-        ================================================== */}
-
-        <aside className="event-editor-preview">
-
-          {/* PREVIEW HEADING */}
-
-          <div className="event-editor-preview-heading">
-
+        <aside
+          className="ef-panel ef-preview"
+          aria-label="Event preview"
+        >
+          <div className="ef-preview-heading">
             <div>
-
-              <span className="org-eyebrow">
-                LIVE PREVIEW
-              </span>
-
-              <h2>
-                See it come to life.
-              </h2>
-
-              <p>
-                Your event card updates as you type.
-              </p>
-
+              <h2>Event preview</h2>
+              <p>Updates as you type.</p>
             </div>
-
 
             <button
               type="button"
-              className="event-editor-preview-toggle"
-              onClick={() =>
-                setPreviewOpen((previous) => !previous)
-              }
+              className="ef-toggle"
               aria-expanded={previewOpen}
+              aria-controls="ef-preview-content"
+              onClick={() =>
+                setPreviewOpen((value) => !value)
+              }
             >
               {previewOpen ? "Hide" : "Show"}
             </button>
-
           </div>
 
-
-          {/* ================================================
-              PREVIEW CARD
-          ================================================ */}
-
           {previewOpen && (
-
-            <div className="event-editor-preview-content">
-
-              <div className="event-editor-preview-card">
-
-                {/* ==========================================
-                    EVENT ARTWORK
-                ========================================== */}
-
-                <div
-                  className={`event-editor-preview-art event-category-${form.category}`}
-                >
-
-                  <div className="event-editor-preview-art-top">
-
-                    <span>
-                      EVENTHUB / CAMPUS
-                    </span>
-
-                    <span>
-                      ↗
-                    </span>
-
-                  </div>
-
-
-                  <div className="event-editor-preview-symbol">
-
-                    <EventArtwork
-                      category={form.category}
-                    />
-
-                  </div>
-
-
-                  <div className="event-editor-preview-art-bottom">
-
-                    <span>
-                      {categoryLabels[form.category]}
-                    </span>
-
-                    <span>
-                      SHOW UP.
-                    </span>
-
-                  </div>
-
-                </div>
-
-
-                {/* ==========================================
-                    PREVIEW INFORMATION
-                ========================================== */}
-
-                <div className="event-editor-preview-body">
-
-                  {/* CATEGORY AND STATUS */}
-
-                  <div className="event-editor-preview-meta">
-
-                    <span>
-                      {categoryLabels[form.category]}
-                    </span>
-
-                    <span
-                      className={`event-editor-status event-editor-status-${eventStatus}`}
-                    >
-                      {isEditing
-                        ? eventStatus
-                        : "Draft"}
-                    </span>
-
-                  </div>
-
-
-                  {/* EVENT TITLE */}
-
-                  <h3>
-                    {form.title.trim() ||
-                      "Your event title"}
-                  </h3>
-
-
-                  {/* DESCRIPTION */}
-
-                  <p className="event-editor-preview-description">
-
-                    {form.description.trim() ||
-                      "Your event description will appear here as you type."}
-
-                  </p>
-
-
-                  {/* EVENT DATE AND VENUE */}
-
-                  <div className="event-editor-preview-details">
-
-                    <div>
-
-                      <span aria-hidden="true">
-                        ◷
-                      </span>
-
-                      <span>
-                        {formatPreviewDate(
-                          form.start_datetime
-                        )}
-                      </span>
-
-                    </div>
-
-
-                    <div>
-
-                      <span aria-hidden="true">
-                        ⌖
-                      </span>
-
-                      <span>
-                        {form.venue.trim() ||
-                          "Event location"}
-                      </span>
-
-                    </div>
-
-                  </div>
-
-
-                  {/* ==========================================
-                      REGISTRATION PREVIEW
-                  ========================================== */}
-
-                  <div className="event-editor-preview-footer">
-
-                    <span>
-                      {isTeamEvent
-                        ? "Registration"
-                        : "Capacity"}
-                    </span>
-
-                    <strong>
-                      {isTeamEvent
-                        ? "Team Event"
-                        : `${form.capacity || 0} seats`}
-                    </strong>
-
-                  </div>
-
-
-                  {/* ==========================================
-                      TEAM PREVIEW
-                  ========================================== */}
-
-                  {isTeamEvent && (
-
-                    <div className="event-editor-preview-team">
-
-                      <div>
-
-                        <span>
-                          TEAM SIZE
-                        </span>
-
-                        <strong>
-                          {form.min_team_size}
-                          {" – "}
-                          {form.max_team_size}
-                          {" members"}
-                        </strong>
-
-                      </div>
-
-
-                      <div>
-
-                        <span>
-                          MAXIMUM TEAMS
-                        </span>
-
-                        <strong>
-                          {form.max_teams}
-                        </strong>
-
-                      </div>
-
-
-                      <div>
-
-                        <span>
-                          STUDENT CAPACITY
-                        </span>
-
-                        <strong>
-                          {form.capacity}
-                        </strong>
-
-                      </div>
-
-                    </div>
-
-                  )}
-
-                </div>
-
+            <div id="ef-preview-content">
+              <div className="ef-cover">
+                <EventCover
+                  category={form.category}
+                  showLabel
+                />
               </div>
 
-
-              {/* ==========================================
-                  PREVIEW NOTICE
-              ========================================== */}
-
-              <div className="event-editor-preview-note">
-
-                <span aria-hidden="true">
-                  ✳
+              <div className="ef-preview-meta">
+                <span>
+                  {categories[form.category]}
                 </span>
 
-                <p>
-                  This is a visual preview only.
-                  Your changes are saved when you
-                  select the Save button.
-                </p>
-
+                <span
+                  className={`ef-status ef-status-${status}`}
+                >
+                  {status}
+                </span>
               </div>
 
+              <h3 className="ef-preview-title">
+                {form.title.trim() ||
+                  "Your event title"}
+              </h3>
+
+              <p className="ef-preview-description">
+                {form.description.trim() ||
+                  "Your event description will appear here as you type."}
+              </p>
+
+              <div className="ef-preview-details">
+                <p>
+                  <span aria-hidden="true">◷</span>
+                  {previewDate(form.start_datetime)}
+                </p>
+
+                <p>
+                  <span aria-hidden="true">⌖</span>
+                  {form.venue.trim() ||
+                    "Event location"}
+                </p>
+              </div>
+
+              <dl className="ef-preview-facts">
+                <div>
+                  <dt>Capacity</dt>
+                  <dd>
+                    {form.capacity || "—"} seats
+                  </dd>
+                </div>
+
+                {team && (
+                  <>
+                    <div>
+                      <dt>Team size</dt>
+                      <dd>
+                        {form.min_team_size || "—"}–
+                        {form.max_team_size || "—"}{" "}
+                        members
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Maximum teams</dt>
+                      <dd>
+                        {form.max_teams || "—"}
+                      </dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+
+              <p className="ef-info">
+                Preview only. Select Save to keep your
+                changes.
+              </p>
             </div>
-
           )}
-
         </aside>
-
       </div>
 
-    </div>
+      <footer className="ef-panel ef-actions">
+        <div>
+          <strong>
+            {cancelled
+              ? "Cancelled event"
+              : status === "published"
+                ? "Published event"
+                : "Private draft"}
+          </strong>
+
+          <p>
+            {cancelled
+              ? "This event is no longer accepting changes."
+              : status === "published"
+                ? "Save changes to update the published event."
+                : "You can review it before publishing."}
+          </p>
+        </div>
+
+        <div className="ef-action-buttons">
+          {!cancelled && (
+            <button
+              type="submit"
+              form="ef-form"
+              className="ef-button ef-primary"
+              disabled={saving}
+            >
+              {operation === "save"
+                ? "Saving…"
+                : editing
+                  ? "Save changes"
+                  : "Save as draft"}
+            </button>
+          )}
+
+          {editing && status === "draft" && (
+            <button
+              type="button"
+              className="ef-button"
+              disabled={saving || dirty}
+              onClick={() => perform("publish")}
+              title={
+                dirty
+                  ? "Save changes before publishing"
+                  : "Publish event"
+              }
+            >
+              {operation === "publish"
+                ? "Publishing…"
+                : "Publish event"}
+            </button>
+          )}
+
+          {editing && !cancelled && (
+            <button
+              type="button"
+              className="ef-button ef-danger"
+              disabled={saving}
+              onClick={() => perform("cancel")}
+            >
+              {operation === "cancel"
+                ? "Cancelling…"
+                : "Cancel event"}
+            </button>
+          )}
+        </div>
+      </footer>
+    </main>
   );
 }

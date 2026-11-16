@@ -1,124 +1,274 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { Link } from "react-router";
 
-import { getOrganizerEvents } from "../services/events";
+import EventCover from "../components/EventCover";
 
-import "../styles/organizer-v2.css";
-import EventArtwork from "../components/EventArtwork";
+import {
+  getOrganizerEvents,
+} from "../services/events";
 
-const categoryLabels = {
-  technical: "Tech & Build",
-  cultural: "Culture & Art",
-  workshop: "Workshop",
-  seminar: "Seminar",
-  sports: "Sports",
-};
+import {
+  formatEventDateTime,
+  getCategoryLabel,
+} from "../utils/eventFormat";
 
-const categoryIcons = {
-  technical: "⌘",
-  cultural: "✳",
-  workshop: "↗",
-  seminar: "◎",
-  sports: "◉",
-};
+import "../styles/organizer-overview.css";
 
-function formatDate(value) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  }).format(date);
+function number(value) {
+  return (
+    value != null &&
+    value !== "" &&
+    Number.isFinite(Number(value))
+  )
+    ? Math.max(0, Number(value))
+    : null;
 }
 
-function formatTime(value) {
-  if (!value) return "—";
+function messageFrom(error) {
+  return (
+    error?.details?.message ||
+    error?.details?.detail ||
+    error?.message ||
+    "Unable to load your events."
+  );
+}
 
-  const date = new Date(value);
+function OrganizerEventCard({ event, index }) {
+  const registered = number(
+    event.registered_count
+  );
 
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
+  const capacity = number(event.capacity);
 
-  return new Intl.DateTimeFormat("en-IN", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Asia/Kolkata",
-  }).format(date);
+  const available =
+    number(event.available_seats) ??
+    (
+      capacity !== null && registered !== null
+        ? Math.max(0, capacity - registered)
+        : null
+    );
+
+  const occupancy =
+    capacity > 0 && registered !== null
+      ? (registered / capacity) * 100
+      : null;
+
+  const statusLabel = {
+    published: "Published",
+    draft: "Draft",
+    cancelled: "Cancelled",
+  }[event.status] || event.status;
+
+  return (
+    <article
+      className="ov-event-card"
+      style={{
+        "--ov-index": Math.min(index, 6),
+      }}
+    >
+      <div className="ov-cover">
+        <EventCover
+          category={event.category}
+          showLabel
+        />
+      </div>
+
+      <div className="ov-event-copy">
+        <div className="ov-event-meta">
+          <span>
+            {getCategoryLabel(event.category)}
+          </span>
+
+          <span
+            className={`ov-status ov-status--${event.status}`}
+          >
+            {statusLabel}
+          </span>
+        </div>
+
+        <h3>{event.title}</h3>
+
+        <p className="ov-detail">
+          <span aria-hidden="true">◷</span>
+
+          {formatEventDateTime(
+            event.start_datetime
+          )}
+        </p>
+
+        <p className="ov-detail">
+          <span aria-hidden="true">⌖</span>
+
+          {event.venue || "Venue to be announced"}
+        </p>
+
+        <div className="ov-capacity">
+          <div>
+            <span>
+              <strong>
+                {registered ?? "—"}
+              </strong>
+
+              {capacity !== null &&
+                ` of ${capacity}`}
+
+              {" "}registrations
+            </span>
+
+            <span>
+              {occupancy !== null
+                ? `${occupancy.toFixed(1)}% occupancy`
+                : "Capacity unavailable"}
+            </span>
+          </div>
+
+          {capacity > 0 &&
+            registered !== null && (
+              <progress
+                value={Math.min(
+                  capacity,
+                  registered
+                )}
+                max={capacity}
+                aria-label={`Reserved seats for ${event.title}`}
+              />
+            )}
+
+          <small>
+            {event.status === "cancelled"
+              ? "Event cancelled"
+              : event.status === "draft"
+                ? capacity !== null
+                  ? `${capacity} seats configured`
+                  : "Set capacity before publishing"
+                : available !== null
+                  ? `${available} seats available`
+                  : "Seat availability unavailable"}
+          </small>
+        </div>
+
+        <div className="ov-card-actions">
+          <Link
+            className="ov-button"
+            to={`/organizer/events/${event.id}/edit`}
+          >
+            {event.status === "cancelled"
+              ? "View event"
+              : "Manage event"}
+
+            <span aria-hidden="true">↗</span>
+          </Link>
+
+          <Link
+            className="ov-participants"
+            to={`/organizer/events/${event.id}/participants`}
+          >
+            Participants →
+          </Link>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 export default function OrganizerDashboard() {
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+
+  const [result, setResult] = useState({
+    revision: -1,
+    events: [],
+    error: "",
+  });
 
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
 
+  const loading =
+    result.revision !== revision;
+
+  const events = result.events;
+
   useEffect(() => {
     let active = true;
 
-    async function loadEvents() {
-      try {
-        const data = await getOrganizerEvents();
+    getOrganizerEvents()
+      .then((data) => {
+        if (!Array.isArray(data)) {
+          throw new Error(
+            "The server returned an unexpected event list."
+          );
+        }
 
         if (active) {
-          setEvents(data);
+          setResult({
+            revision,
+            events: data,
+            error: "",
+          });
         }
-      } catch (err) {
+      })
+      .catch((error) => {
         if (active) {
-          setError(err.message);
+          setResult({
+            revision,
+            events: [],
+            error: messageFrom(error),
+          });
         }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadEvents();
+      });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [revision]);
 
-  const totalEvents = events.length;
+  const statistics = useMemo(
+    () => ({
+      total: events.length,
 
-  const publishedEvents = events.filter(
-    (event) => event.status === "published"
-  ).length;
+      published: events.filter(
+        (event) => event.status === "published"
+      ).length,
 
-  const draftEvents = events.filter(
-    (event) => event.status === "draft"
-  ).length;
+      drafts: events.filter(
+        (event) => event.status === "draft"
+      ).length,
 
-  const totalRegistrations = events.reduce(
-    (total, event) =>
-      total + Number(event.registered_count || 0),
-    0
+      registrations: events.some(
+        (event) =>
+          number(event.registered_count) === null
+      )
+        ? "—"
+        : events.reduce(
+            (total, event) =>
+              total +
+              number(event.registered_count),
+            0
+          ),
+    }),
+    [events]
   );
 
-  const filteredEvents = useMemo(() => {
+  const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return events.filter((event) => {
       const matchesStatus =
-        filter === "all" || event.status === filter;
+        filter === "all" ||
+        event.status === filter;
 
       const searchable = [
         event.title,
         event.venue,
         event.category,
+        getCategoryLabel(event.category),
       ]
+        .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
@@ -129,228 +279,131 @@ export default function OrganizerDashboard() {
     });
   }, [events, filter, search]);
 
+  const hasFilters =
+    search.trim() !== "" ||
+    filter !== "all";
+
+  function clearFilters() {
+    setSearch("");
+    setFilter("all");
+  }
+
   return (
-    <div className="organizer-dashboard organizer-v2">
-
-      {/* ==========================================
-          WELCOME HERO
-      ========================================== */}
-
-      <section className="org-welcome">
-
-        <div className="org-welcome-content">
-
-          <span className="org-eyebrow">
-            ✳ YOUR ORGANIZER WORKSPACE
-          </span>
-
-          <h1>
-            Make it
-            <br />
-            <span>unforgettable.</span>
-          </h1>
-
-          <p>
-            Big ideas deserve great events.
-            Create experiences, bring students together,
-            and make every campus moment count.
+    <div className="ov-page">
+      <header className="ov-heading">
+        <div>
+          <p className="ov-eyebrow">
+            <span aria-hidden="true">▪</span>
+            Your organiser workspace
           </p>
 
-          <div className="org-welcome-actions">
+          <h1>
+            Make it <span>unforgettable.</span>
+          </h1>
 
-            <Link
-              to="/organizer/events/new"
-              className="org-button-primary"
-            >
-              + Create an Event
-              <span>↗</span>
-            </Link>
-
-            <Link
-              to="/organizer/analytics"
-              className="org-button-outline"
-            >
-              View Analytics →
-            </Link>
-
-          </div>
+          <p className="ov-intro">
+            Your events, participants and campus
+            plans, in one place.
+          </p>
         </div>
 
-        <div
-          className="org-welcome-art"
-          aria-hidden="true"
-        >
-          <div className="org-art-back">
-            <span>EVENTHUB / 26</span>
-            <strong>CREATE<br />CONNECT<br />CELEBRATE.</strong>
-          </div>
-
-          <div className="org-art-front">
-            <div className="org-art-top">
-              <span>THE ORGANIZER EDITION</span>
-              <span>001 ↗</span>
-            </div>
-
-            <strong>
-              YOUR
-              <br />
-              EVENT.
-              <br />
-              YOUR
-              <br />
-              IMPACT.
-            </strong>
-
-            <div className="org-art-bottom">
-              <span>MAKE IT HAPPEN.</span>
-              <span>✳</span>
-            </div>
-          </div>
-
-          <div className="org-art-sticker">
-            SHOW
+        <div className="ov-heading-actions">
+          <span
+            className="ov-pass-tag"
+            aria-hidden="true"
+          >
+            Campus
             <br />
-            UP.
-            <br />
-            STAND
-            <br />
-            OUT.
-          </div>
-        </div>
-
-      </section>
-
-      {/* ==========================================
-          SECTION HEADING
-      ========================================== */}
-
-      <div className="org-section-title">
-
-        <div>
-          <span className="org-eyebrow">
-            01 / THE BIG PICTURE
+            organiser ✳
           </span>
 
-          <h2>
-            Your campus.
-            <br />
-            <span>Your impact.</span>
-          </h2>
-        </div>
-
-        <p>
-          A quick look at everything happening
-          across your events.
-        </p>
-
-      </div>
-
-      {/* ==========================================
-          STATISTICS
-      ========================================== */}
-
-      <section
-        className="org-stats-grid"
-        aria-label="Organizer statistics"
-      >
-
-        <article className="org-stat-card">
-
-          <div className="org-stat-top">
-            <span>TOTAL EVENTS</span>
-            <span className="org-stat-icon">✳</span>
-          </div>
-
-          <strong>
-            {loading ? "—" : totalEvents}
-          </strong>
-
-          <p>Experiences you've created</p>
-
-        </article>
-
-        <article className="org-stat-card org-stat-blue">
-
-          <div className="org-stat-top">
-            <span>LIVE EVENTS</span>
-            <span className="org-stat-icon">↗</span>
-          </div>
-
-          <strong>
-            {loading ? "—" : publishedEvents}
-          </strong>
-
-          <p>Published for students</p>
-
-        </article>
-
-        <article className="org-stat-card org-stat-lime">
-
-          <div className="org-stat-top">
-            <span>REGISTRATIONS</span>
-            <span className="org-stat-icon">◎</span>
-          </div>
-
-          <strong>
-            {loading ? "—" : totalRegistrations}
-          </strong>
-
-          <p>Students currently registered</p>
-
-        </article>
-
-        <article className="org-stat-card org-stat-lavender">
-
-          <div className="org-stat-top">
-            <span>DRAFT EVENTS</span>
-            <span className="org-stat-icon">✎</span>
-          </div>
-
-          <strong>
-            {loading ? "—" : draftEvents}
-          </strong>
-
-          <p>Ideas waiting to go live</p>
-
-        </article>
-
-      </section>
-
-      {/* ==========================================
-          EVENT MANAGEMENT
-      ========================================== */}
-
-      <section className="org-events-section">
-
-        <div className="org-section-heading">
-
-          <div>
-            <span className="org-eyebrow">
-              02 / EVENT MANAGEMENT
-            </span>
-
-            <h2>Your events.</h2>
-
-            <p>
-              Everything you're organizing, in one place.
-            </p>
-          </div>
-
           <Link
+            className="ov-button"
             to="/organizer/events/new"
-            className="org-small-create"
           >
-            + New Event
+            ＋ Create an event
           </Link>
 
+          <Link
+            className="ov-button ov-button--outline"
+            to="/organizer/analytics"
+          >
+            View analytics
+          </Link>
+        </div>
+      </header>
+
+      {!loading && !result.error && (
+        <section
+          className="ov-stats"
+          aria-label="Organiser overview metrics"
+        >
+          {[
+            [
+              "Total events",
+              statistics.total,
+              "blue",
+            ],
+            [
+              "Published",
+              statistics.published,
+              "blue",
+            ],
+            [
+              "Active registrations",
+              statistics.registrations,
+              "lime",
+            ],
+            [
+              "Drafts",
+              statistics.drafts,
+              "lavender",
+            ],
+          ].map(
+            ([label, value, accent], index) => (
+              <article
+                className={`ov-stat ov-stat--${accent}`}
+                key={label}
+                style={{
+                  "--ov-index": index,
+                }}
+              >
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </article>
+            )
+          )}
+        </section>
+      )}
+
+      <section
+        className="ov-events"
+        aria-labelledby="ov-events-title"
+        aria-busy={loading}
+      >
+        <div className="ov-section-heading">
+          <div>
+            <h2 id="ov-events-title">
+              Your events.
+            </h2>
+
+            <p>
+              Manage what you’re organising.
+
+              {!loading &&
+                !result.error &&
+                ` ${events.length} ${
+                  events.length === 1
+                    ? "event"
+                    : "events"
+                }.`}
+            </p>
+          </div>
         </div>
 
-        {/* Search and filters */}
-
-        <div className="org-events-toolbar">
-
-          <label className="org-search">
-            <span className="org-visually-hidden">
+        <div className="ov-toolbar">
+          <label className="ov-search">
+            <span className="ov-sr-only">
               Search your events
             </span>
 
@@ -358,308 +411,194 @@ export default function OrganizerDashboard() {
 
             <input
               type="search"
-              placeholder="Search your events..."
               value={search}
               onChange={(event) =>
                 setSearch(event.target.value)
               }
+              placeholder="Search your events…"
             />
           </label>
 
           <div
-            className="org-filter-group"
+            className="ov-filters"
             role="group"
             aria-label="Filter events by status"
           >
-
             {[
-              ["all", "All Events"],
+              ["all", "All events"],
               ["published", "Published"],
               ["draft", "Drafts"],
               ["cancelled", "Cancelled"],
             ].map(([value, label]) => (
-
               <button
-                key={value}
                 type="button"
-                className={
-                  filter === value ? "active" : ""
-                }
-                onClick={() => setFilter(value)}
+                key={value}
                 aria-pressed={filter === value}
+                onClick={() => setFilter(value)}
               >
                 {label}
               </button>
-
             ))}
-
           </div>
-
         </div>
 
-        {loading && (
-          <div className="org-state-message" role="status">
-            Loading your events...
-          </div>
-        )}
-
-        {error && (
+        {loading ? (
           <div
-            className="organizer-error"
+            className="ov-message"
+            role="status"
+          >
+            Loading your events…
+          </div>
+        ) : result.error ? (
+          <div
+            className="ov-message"
             role="alert"
           >
-            {error}
+            <h3>Unable to load your events.</h3>
+
+            <p>{result.error}</p>
+
+            <button
+              className="ov-button"
+              type="button"
+              onClick={() =>
+                setRevision((value) => value + 1)
+              }
+            >
+              Try again
+            </button>
           </div>
-        )}
-
-        {!loading &&
-          !error &&
-          filteredEvents.length === 0 && (
-
-          <div className="org-empty">
-
-            <span>✳</span>
-
+        ) : !visible.length ? (
+          <div className="ov-message">
             <h3>
-              {events.length === 0
-                ? "Your next big event starts here."
-                : "No matching events."}
+              {events.length
+                ? "No matching events."
+                : "Your next event starts here."}
             </h3>
 
             <p>
-              {events.length === 0
-                ? "Create your first event and bring your campus community together."
-                : "Try changing the search or status filter."}
+              {events.length
+                ? "Try a different search or status filter."
+                : "Create your first event and bring your campus community together."}
             </p>
 
-            {events.length === 0 ? (
-              <Link
-                to="/organizer/events/new"
-                className="org-button-primary"
-              >
-                Create Your First Event ↗
-              </Link>
-            ) : (
+            {events.length ? (
               <button
+                className="ov-button ov-button--outline"
                 type="button"
-                className="org-button-outline"
-                onClick={() => {
-                  setSearch("");
-                  setFilter("all");
-                }}
+                onClick={clearFilters}
               >
-                Clear Filters
+                Clear filters
               </button>
+            ) : (
+              <Link
+                className="ov-button"
+                to="/organizer/events/new"
+              >
+                Create your first event →
+              </Link>
             )}
-
           </div>
-
-        )}
-
-        {!loading &&
-          !error &&
-          filteredEvents.length > 0 && (
-
-          <div className="org-event-grid">
-
-            {filteredEvents.map((event) => {
-
-              const count = Number(
-                event.registered_count || 0
-              );
-
-              const capacity = Number(
-                event.capacity || 0
-              );
-
-              const percentage =
-                capacity > 0
-                  ? Math.min(
-                      100,
-                      (count / capacity) * 100
-                    )
-                  : 0;
-
-              return (
-
-                <article
-                  className="org-event-card"
+        ) : (
+          <>
+            <div className="ov-event-list">
+              {visible.map((event, index) => (
+                <OrganizerEventCard
                   key={event.id}
-                >
+                  event={event}
+                  index={index}
+                />
+              ))}
+            </div>
 
-                  {/* Event artwork */}
+            <div className="ov-list-note">
+              {hasFilters ? (
+                <>
+                  <span>
+                    {visible.length} matching{" "}
+                    {visible.length === 1
+                      ? "event"
+                      : "events"}
+                  </span>
 
-                  <div
-                    className={`org-event-art org-category-${event.category}`}
+                  <button
+                    type="button"
+                    onClick={clearFilters}
                   >
-
-                    <div className="org-event-art-top">
-                      <span>EVENTHUB / CAMPUS</span>
-                      <span>↗</span>
-                    </div>
-
-                    <div className="org-event-art-center">
-                      <EventArtwork category={event.category} />
-                    </div>
-
-                    <div className="org-event-art-bottom">
-                      <span>
-                        {categoryLabels[event.category] ||
-                          event.category}
-                      </span>
-
-                      <span>SHOW UP.</span>
-                    </div>
-
-                  </div>
-
-                  {/* Event information */}
-
-                  <div className="org-event-content">
-
-                    <div className="org-event-meta">
-
-                      <span>
-                        {categoryLabels[event.category] ||
-                          event.category}
-                      </span>
-
-                      <span
-                        className={`org-status org-status-${event.status}`}
-                      >
-                        {event.status}
-                      </span>
-
-                    </div>
-
-                    <h3>{event.title}</h3>
-
-                    <div className="org-event-details">
-
-                      <p>
-                        ◷ {formatDate(event.start_datetime)}
-                        {" · "}
-                        {formatTime(event.start_datetime)}
-                      </p>
-
-                      <p>⌖ {event.venue}</p>
-
-                    </div>
-
-                    <div className="org-event-capacity">
-
-                      <div>
-                        <span>REGISTRATIONS</span>
-
-                        <strong>
-                          {count} / {capacity}
-                        </strong>
-                      </div>
-
-                      <div className="org-progress-track">
-                        <div
-                          style={{
-                            width: `${percentage}%`,
-                          }}
-                        />
-                      </div>
-
-                    </div>
-
-                    <div className="org-event-card-actions">
-
-                      <Link
-                        to={`/organizer/events/${event.id}/edit`}
-                        className="org-card-main-action"
-                      >
-                        {event.status === "cancelled"
-                          ? "View Event"
-                          : "Manage Event"}
-                        <span>↗</span>
-                      </Link>
-
-                      <Link
-                        to={`/organizer/events/${event.id}/participants`}
-                        className="org-card-secondary-action"
-                      >
-                        Participants →
-                      </Link>
-
-                    </div>
-
-                  </div>
-
-                </article>
-
-              );
-            })}
-
-          </div>
-
+                    Clear filters
+                  </button>
+                </>
+              ) : (
+                <p>
+                  New events will appear here
+                  as you create them.
+                </p>
+              )}
+            </div>
+          </>
         )}
-
       </section>
 
-      {/* ==========================================
-          QUICK ACCESS
-      ========================================== */}
+      <section
+        className="ov-quick-links"
+        aria-labelledby="ov-quick-title"
+      >
+        <h2 id="ov-quick-title">
+          Quick links.
+        </h2>
 
-      <section className="org-quick-section">
+        <div>
+          {[
+            [
+              "/organizer/events/new",
+              "＋",
+              "Create an event",
+              "Turn an idea into your next campus event.",
+            ],
+            [
+              "/organizer/analytics",
+              "▥",
+              "Analytics",
+              "Registrations, attendance and growth.",
+            ],
+            [
+              "/events",
+              "✳",
+              "Explore campus",
+              "See what students can discover.",
+            ],
+          ].map(([path, icon, title, text]) => (
+            <Link
+              to={path}
+              className="ov-quick-link"
+              key={path}
+            >
+              <span
+                className="ov-quick-icon"
+                aria-hidden="true"
+              >
+                {icon}
+              </span>
 
-        <div className="org-section-heading">
+              <span>
+                <strong>{title}</strong>
+                <small>{text}</small>
+              </span>
 
-          <div>
-            <span className="org-eyebrow">
-              03 / YOUR TOOLKIT
-            </span>
-
-            <h2>Everything you need.</h2>
-          </div>
-
+              <span
+                className="ov-quick-arrow"
+                aria-hidden="true"
+              >
+                →
+              </span>
+            </Link>
+          ))}
         </div>
-
-        <div className="org-quick-grid">
-
-          <Link
-            to="/organizer/events/new"
-            className="org-quick-card"
-          >
-            <span className="org-quick-symbol">＋</span>
-            <h3>Create an event</h3>
-            <p>
-              Turn your next campus idea into reality.
-            </p>
-            <strong>Get started ↗</strong>
-          </Link>
-
-          <Link
-            to="/organizer/analytics"
-            className="org-quick-card"
-          >
-            <span className="org-quick-symbol">▥</span>
-            <h3>Explore analytics</h3>
-            <p>
-              See registrations, attendance and growth.
-            </p>
-            <strong>View insights ↗</strong>
-          </Link>
-
-          <Link
-            to="/events"
-            className="org-quick-card"
-          >
-            <span className="org-quick-symbol">✳</span>
-            <h3>Explore campus</h3>
-            <p>
-              Discover the experiences students can join.
-            </p>
-            <strong>Explore events ↗</strong>
-          </Link>
-
-        </div>
-
       </section>
 
+      <footer className="ov-footer">
+        Show up. Stand out.
+      </footer>
     </div>
   );
 }

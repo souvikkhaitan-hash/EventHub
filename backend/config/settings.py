@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "events",
     "accounts",
+    "certificates",
 ]
 
 MIDDLEWARE = [
@@ -160,3 +161,7 @@ ANALYTICS_INTERNAL_KEY = os.getenv(
     "ANALYTICS_INTERNAL_KEY",
     ""
 )
+
+# Private certificate artwork.
+# Access is provided through authenticated API views.
+CERTIFICATE_STORAGE_ROOT = BASE_DIR / "private_media" / "certificates"

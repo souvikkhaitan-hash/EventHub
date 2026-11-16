@@ -1,0 +1,139 @@
+from django.urls import path
+
+from .views import (
+    EventCertificateTemplatesView,
+    TemplateBackgroundView,
+    TemplatePreviewView,
+    TemplateVersionsView,
+)
+from .asset_views import (
+    CertificateAssetImageView,
+    TemplateAssetsView,
+)
+from .recipient_views import (
+    CertificateRecipientPreviewView,
+    EventCertificateRecipientsView,
+)
+from .batch_views import (
+    CertificateBatchDetailView,
+    EventCertificateBatchesView,
+    GeneratedCertificateDocumentView,
+)
+from .publication_views import (
+    MyCertificatesView,
+    PublishCertificateBatchView,
+    StudentCertificateDocumentView,
+)
+from .verification_views import (
+    OrganizerCertificateRevocationView,
+    PublicCertificateVerificationView,
+)
+from .result_views import (
+    AwardResultRecipientsView,
+    EventAwardResultsView,
+    WithdrawAwardResultView,
+)
+from .award_views import AwardRecipientPreviewView
+
+urlpatterns = [
+    path(
+        "events/<int:event_id>/templates/",
+        EventCertificateTemplatesView.as_view(),
+        name="event-certificate-templates",
+    ),
+    path(
+        "templates/<int:template_id>/versions/",
+        TemplateVersionsView.as_view(),
+        name="certificate-template-versions",
+    ),
+    path(
+        "versions/<int:version_id>/background/",
+        TemplateBackgroundView.as_view(),
+        name="certificate-version-background",
+    ),
+    path(
+        "versions/<int:version_id>/preview/",
+        TemplatePreviewView.as_view(),
+        name="certificate-version-preview",
+    ),
+        path(
+        "templates/<int:template_id>/assets/",
+        TemplateAssetsView.as_view(),
+        name="certificate-template-assets",
+    ),
+    path(
+        "assets/<int:asset_id>/image/",
+        CertificateAssetImageView.as_view(),
+        name="certificate-asset-image",
+    ),
+        path(
+        "events/<int:event_id>/recipients/",
+        EventCertificateRecipientsView.as_view(),
+        name="event-certificate-recipients",
+    ),
+    path(
+        "versions/<int:version_id>/recipient-preview/",
+        CertificateRecipientPreviewView.as_view(),
+        name="certificate-recipient-preview",
+    ),
+        path(
+        "events/<int:event_id>/batches/",
+        EventCertificateBatchesView.as_view(),
+        name="event-certificate-batches",
+    ),
+    path(
+        "batches/<uuid:batch_id>/",
+        CertificateBatchDetailView.as_view(),
+        name="certificate-batch-detail",
+    ),
+    path(
+        "documents/<uuid:certificate_id>/",
+        GeneratedCertificateDocumentView.as_view(),
+        name="generated-certificate-document",
+    ),
+        path(
+        "batches/<uuid:batch_id>/publish/",
+        PublishCertificateBatchView.as_view(),
+        name="publish-certificate-batch",
+    ),
+    path(
+        "mine/",
+        MyCertificatesView.as_view(),
+        name="my-certificates",
+    ),
+    path(
+        "mine/<uuid:certificate_id>/document/",
+        StudentCertificateDocumentView.as_view(),
+        name="student-certificate-document",
+    ),
+        path(
+        "verify/<uuid:certificate_id>/",
+        PublicCertificateVerificationView.as_view(),
+        name="certificate-public-verification",
+    ),
+    path(
+        "documents/<uuid:certificate_id>/revocation/",
+        OrganizerCertificateRevocationView.as_view(),
+        name="certificate-revocation",
+    ),
+        path(
+        "events/<int:event_id>/results/",
+        EventAwardResultsView.as_view(),
+        name="event-award-results",
+    ),
+    path(
+        "results/<uuid:result_id>/withdraw/",
+        WithdrawAwardResultView.as_view(),
+        name="withdraw-award-result",
+    ),
+    path(
+        "results/<uuid:result_id>/recipients/",
+        AwardResultRecipientsView.as_view(),
+        name="award-result-recipients",
+    ),
+        path(
+        "versions/<int:version_id>/award-preview/",
+        AwardRecipientPreviewView.as_view(),
+        name="award-recipient-preview",
+    ),
+]

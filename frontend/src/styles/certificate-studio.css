@@ -1,0 +1,496 @@
+.cert-page.cert-studio {
+  --cs-height: clamp(460px, calc(100dvh - 100px), 700px);
+  gap: 18px;
+  max-width: 1380px;
+  margin-inline: auto;
+  font-family: "DM Sans", sans-serif;
+}
+
+.cert-studio [hidden] {
+  display: none !important;
+}
+
+.cert-studio .cert-header {
+  padding: 0;
+  align-items: center;
+}
+
+.cert-studio .cert-header h1 {
+  font-size: clamp(29px, 3.5vw, 44px);
+  letter-spacing: -0.05em;
+  margin: 9px 0;
+}
+
+.cert-studio .cert-header h1 span {
+  color: #3659f5;
+}
+
+.cert-studio .cert-header p {
+  font-size: 14px;
+}
+
+.cert-studio .org-eyebrow {
+  color: #3659f5;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cert-studio .organizer-back-link {
+  font-size: 12px;
+  margin: 0;
+  color: #596170;
+}
+
+.cert-studio .cert-badge {
+  padding: 7px 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.cert-studio .cs-tabs {
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid #dddde6;
+  overflow-x: auto;
+}
+
+.cert-studio .cs-tabs button {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: #596170;
+  padding: 13px 17px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cert-studio .cs-tabs button[aria-selected="true"] {
+  color: #3659f5;
+  border-bottom-color: #3659f5;
+}
+
+.cert-studio .cs-tabs button:hover:not(:disabled) {
+  background: #f3f1ff;
+}
+
+.cert-studio .cs-panel:not([hidden]) {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  animation: cs-enter 0.25s ease both;
+}
+
+.cert-studio .cert-card {
+  border-radius: 13px;
+  padding: 20px;
+}
+
+.cert-studio .cert-card.cert-toolbar {
+  position: static;
+  top: auto;
+  padding: 14px 16px;
+  gap: 12px;
+  box-shadow: none;
+}
+
+.cert-studio .cert-toolbar label {
+  flex-basis: 190px;
+}
+
+.cert-studio .cert-toolbar .cert-status {
+  flex-basis: auto;
+  font-size: 10px;
+}
+
+.cert-studio label {
+  font-size: 11px;
+  gap: 6px;
+}
+
+.cert-studio
+  input:not([type="range"]):not([type="color"]):not([type="checkbox"]),
+.cert-studio select {
+  min-height: 38px;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+.cert-studio input[type="checkbox"] {
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.cert-studio
+  button:not(.cert-field-box):not(.cert-resize-handle) {
+  min-height: 37px;
+  font-size: 11px;
+  padding: 9px 12px;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.cert-studio small {
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.cert-studio p {
+  font-size: 12px;
+}
+
+.cert-studio h2 {
+  font-size: 22px;
+  letter-spacing: -0.035em;
+}
+
+.cert-studio details.cert-card {
+  padding: 11px 14px;
+  background: #fcfcfd;
+}
+
+.cert-studio details.cert-card[open] {
+  padding: 18px;
+}
+
+.cert-studio .cert-mode-toolbar {
+  margin: 0;
+  gap: 8px;
+}
+
+.cert-studio .cert-mode-toolbar small {
+  margin-left: 8px;
+}
+
+.cert-studio .cert-editor-grid {
+  grid-template-columns: minmax(0, 1fr) 310px;
+  align-items: start;
+  gap: 16px;
+}
+
+.cert-studio .cert-canvas-panel {
+  position: sticky;
+  top: 16px;
+  padding: 18px;
+}
+
+.cert-studio .cert-canvas-panel > p {
+  font-size: 11px;
+  margin: 8px 0 12px;
+}
+
+.cert-studio
+  .cert-canvas-panel
+  .cert-section-heading {
+  align-items: center;
+}
+
+.cert-studio .cert-canvas-panel h2 {
+  margin: 0;
+}
+
+.cert-studio .cert-paper-area {
+  height: calc(var(--cs-height) - 166px);
+  min-height: 250px;
+  margin: 0 0 10px;
+  padding: 14px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.cert-studio .cert-paper {
+  width: min(
+    100%,
+    calc(
+      (var(--cs-height) - 198px) *
+      var(--page-ratio, 1.414)
+    )
+  );
+  margin: auto;
+}
+
+.cert-studio .cert-inspector {
+  position: sticky;
+  top: 16px;
+  max-height: var(--cs-height);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.cert-studio .cert-inspector .cert-card {
+  padding: 17px;
+}
+
+.cert-studio .cert-controls {
+  gap: 12px;
+}
+
+.cert-studio .cert-inspector h2 {
+  font-size: 20px;
+}
+
+.cert-studio .cert-inspector textarea {
+  min-height: 65px;
+  max-height: 160px;
+  resize: vertical;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.cert-studio
+  .cert-inspector
+  input[type="color"] {
+  height: 35px;
+}
+
+.cert-studio .cert-inspector details {
+  padding: 10px;
+}
+
+.cert-studio .cert-inspector details > summary {
+  font-size: 11px;
+}
+
+.cert-studio .cert-inspector .cert-remove {
+  color: #b4322a;
+  border-color: #f1d2cc;
+  background: #fffafa;
+}
+
+.cert-studio .cs-size,
+.cert-studio .cs-align {
+  display: grid;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cert-studio .cs-size > div {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 5px;
+}
+
+.cert-studio .cs-size label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d9dbe2;
+  border-radius: 8px;
+  padding-right: 10px;
+}
+
+.cert-studio .cs-size input[type="number"] {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  padding: 5px;
+}
+
+.cert-studio .cs-size button {
+  padding: 5px !important;
+  font-size: 17px !important;
+}
+
+.cert-studio .cs-align > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.cert-studio .cs-align button {
+  padding: 7px 5px !important;
+}
+
+.cert-studio
+  .cs-align
+  button[aria-pressed="true"] {
+  background: #3659f5;
+  color: #fff;
+  border-color: #3659f5;
+}
+
+.cs-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cert-studio .cert-preview-empty {
+  padding: 16px;
+  font-size: 11px;
+  min-height: 0;
+}
+
+.cert-studio .cert-preview-actions {
+  gap: 12px;
+}
+
+.cert-studio .cert-section-heading p {
+  margin: 8px 0 0;
+}
+
+.cert-studio .cert-pdf {
+  height: 65dvh;
+  min-height: 340px;
+}
+
+.cert-studio .cert-delivery-tabs {
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.cert-studio .cert-recipients {
+  gap: 16px;
+}
+
+.cert-studio
+  .cert-recipients
+  .cert-recipient-policy {
+  font-size: 11px;
+}
+
+.cert-studio .cert-recipient-table :is(th, td) {
+  padding: 12px;
+  font-size: 11px;
+}
+
+.cert-studio .cert-recipient-table th {
+  font-size: 9px;
+}
+
+.cert-studio .cert-batch-history-heading {
+  margin-top: 0;
+}
+
+.cert-studio .cert-batches {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.cert-studio .cert-batch-review {
+  margin-top: 20px;
+}
+
+.cert-studio .cert-message {
+  font-size: 12px;
+}
+
+@keyframes cs-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (min-width: 1400px) {
+  .cert-studio .cert-editor-grid {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+@media (max-width: 1000px) and (min-width: 801px) {
+  .cert-studio .cert-editor-grid {
+    grid-template-columns: minmax(0, 1fr) 270px;
+  }
+
+  .cert-studio .cert-card.cert-canvas-panel {
+    padding: 13px;
+  }
+}
+
+@media (max-width: 800px) {
+  .cert-page.cert-studio {
+    gap: 15px;
+  }
+
+  .cert-studio .cert-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .cert-studio .cert-editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cert-studio .cert-canvas-panel {
+    position: sticky;
+    top: 8px;
+    z-index: 4;
+    padding: 12px;
+    box-shadow: 0 3px 14px #18191d0a;
+  }
+
+  .cert-studio .cert-canvas-panel > p,
+  .cert-studio .cert-canvas-panel > small {
+    display: none;
+  }
+
+  .cert-studio .cert-paper-area {
+    height: 32dvh;
+    min-height: 160px;
+    padding: 8px;
+    margin: 10px 0 0;
+  }
+
+  .cert-studio .cert-paper {
+    width: min(
+      100%,
+      calc(
+        (32dvh - 20px) *
+        var(--page-ratio, 1.414)
+      )
+    );
+  }
+
+  .cert-studio .cert-inspector {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .cert-studio .cert-toolbar {
+    gap: 10px;
+  }
+
+  .cert-studio .cert-toolbar label {
+    flex-basis: 100%;
+  }
+
+  .cert-studio .cs-tabs {
+    gap: 2px;
+  }
+
+  .cert-studio .cs-tabs button {
+    padding: 11px 9px !important;
+    font-size: 10px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cert-studio * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
 import { Link, Navigate } from "react-router";
 
 import Navbar from "../components/Navbar";
-import EventArtworkIcon from "../components/EventArtworkIcon";
+import EventCover from "../components/EventCover";
+import StudentCertificates from "../components/StudentCertificates";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -16,701 +23,587 @@ import {
   getCategoryLabel,
 } from "../utils/eventFormat";
 
-import "../styles/registrations.css";
+import "../styles/my-registrations-editorial.css";
 
-// ============================================================
-// EVENTHUB 2.0 — MY REGISTRATIONS
-// ============================================================
-
-function getEventState(registration) {
-  if (registration.status === "cancelled") {
+function eventState(item, now) {
+  if (item.status === "cancelled") {
     return "cancelled";
   }
 
-  if (
-    new Date(registration.event_start).getTime() <= Date.now()
-  ) {
-    return "past";
+  const start = Date.parse(item.event_start);
+
+  if (!Number.isFinite(start)) {
+    return "unknown";
   }
 
-  return "upcoming";
+  return start <= now ? "past" : "upcoming";
 }
 
-function getErrorMessage(error) {
+function messageFrom(error) {
   return (
     error?.details?.message ||
     error?.details?.detail ||
     error?.message ||
-    "Something went wrong."
+    "Please try again."
   );
 }
 
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
-
-export default function MyRegistrations() {
-  const { user, loading: authLoading } = useAuth();
-
-  const [registrations, setRegistrations] = useState([]);
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-
-  const [cancellingId, setCancellingId] = useState(null);
-
-  const [activeFilter, setActiveFilter] = useState("all");
-
-  const [now, setNow] = useState(Date.now());
-
-  // ==========================================================
-  // KEEP EVENT STATUS UPDATED
-  // ==========================================================
+// Reveal a section once when it enters the viewport.
+function Reveal({ children, className = "" }) {
+  const node = useRef(null);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNow(Date.now());
-    }, 60000);
+    const element = node.current;
 
-    return () => window.clearInterval(timer);
-  }, []);
-
-  // ==========================================================
-  // LOAD REGISTRATIONS
-  // ==========================================================
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    if (!user || user.is_organizer) {
-      setLoading(false);
+    if (
+      !element ||
+      !window.IntersectionObserver ||
+      window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)"
+      ).matches
+    ) {
       return;
     }
 
-    let active = true;
+    element.classList.add("mr-waiting");
 
-    async function loadRegistrations() {
-      setLoading(true);
-      setError("");
-
-      try {
-        const response = await getMyRegistrations();
-
-        if (active) {
-          setRegistrations(
-            Array.isArray(response) ? response : []
-          );
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries.some((entry) => entry.isIntersecting)
+        ) {
+          element.classList.remove("mr-waiting");
+          observer.disconnect();
         }
-      } catch (err) {
-        if (active) {
-          setError(getErrorMessage(err));
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
+      },
+      { threshold: 0.06 }
+    );
 
-    loadRegistrations();
+    observer.observe(element);
 
     return () => {
-      active = false;
+      observer.disconnect();
+      element.classList.remove("mr-waiting");
     };
-  }, [user, authLoading]);
+  }, []);
 
-  // ==========================================================
-  // CANCELLATION
-  // ==========================================================
+  return (
+    <div
+      className={`mr-reveal ${className}`}
+      ref={node}
+    >
+      {children}
+    </div>
+  );
+}
 
-  async function handleCancel(registration) {
-    if (cancellingId !== null) return;
+export default function MyRegistrations() {
+  const { user, loading } = useAuth();
 
-    const confirmed = window.confirm(
-      `Are you sure you want to cancel your registration for "${registration.event_title}"?`
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+
+        <main className="mr-page">
+          <p role="status">
+            Loading your account…
+          </p>
+        </main>
+      </>
     );
-
-    if (!confirmed) return;
-
-    setCancellingId(registration.id);
-
-    setError("");
-    setMessage("");
-
-    try {
-      await cancelRegistration(registration.id);
-
-      setRegistrations((previous) =>
-        previous.map((item) =>
-          item.id === registration.id
-            ? {
-                ...item,
-                status: "cancelled",
-                cancelled_at: new Date().toISOString(),
-              }
-            : item
-        )
-      );
-
-      setMessage(
-        `Your registration for "${registration.event_title}" was cancelled successfully.`
-      );
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setCancellingId(null);
-    }
   }
 
-  // ==========================================================
-  // STATISTICS
-  // ==========================================================
-
-  const statistics = useMemo(() => {
-    const active = registrations.filter(
-      (item) => item.status === "registered"
-    );
-
-    const upcoming = active.filter(
-      (item) =>
-        new Date(item.event_start).getTime() > now
-    );
-
-    const past = active.filter(
-      (item) =>
-        new Date(item.event_start).getTime() <= now
-    );
-
-    const cancelled = registrations.filter(
-      (item) => item.status === "cancelled"
-    );
-
-    return {
-      active: active.length,
-      upcoming: upcoming.length,
-      past: past.length,
-      cancelled: cancelled.length,
-    };
-  }, [registrations, now]);
-
-  // ==========================================================
-  // FILTER AND SORT
-  // ==========================================================
-
-  const filteredRegistrations = useMemo(() => {
-    const filtered = registrations.filter((item) => {
-      const state =
-        item.status === "cancelled"
-          ? "cancelled"
-          : new Date(item.event_start).getTime() <= now
-            ? "past"
-            : "upcoming";
-
-      return (
-        activeFilter === "all" ||
-        activeFilter === state
-      );
-    });
-
-    return [...filtered].sort((a, b) => {
-      const dateA = new Date(a.event_start).getTime();
-      const dateB = new Date(b.event_start).getTime();
-
-      return dateA - dateB;
-    });
-  }, [registrations, activeFilter, now]);
-
-  // ==========================================================
-  // ROLE PROTECTION
-  // ==========================================================
-
-  if (!authLoading && !user) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!authLoading && user?.is_organizer) {
+  if (user.is_organizer) {
     return <Navigate to="/organizer" replace />;
   }
-
-  // ==========================================================
-  // PAGE
-  // ==========================================================
 
   return (
     <>
       <Navbar />
 
-      <main className="registrations-page registrations-v2">
+      <RegistrationWorkspace
+        key={user.id ?? user.username}
+      />
+    </>
+  );
+}
 
-        {/* Decorative background */}
+function RegistrationWorkspace() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-        <div
-          className="registrations-background-art"
-          aria-hidden="true"
-        />
+  const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [notice, setNotice] = useState("");
 
-        <div className="container">
+  const [revision, setRevision] = useState(0);
+  const [filter, setFilter] = useState("all");
 
-          {/* ================================================
-              HEADING
-          ================================================ */}
+  const [cancelling, setCancelling] = useState(null);
 
-          <header className="registrations-heading registrations-v2-heading">
+  const [now, setNow] = useState(
+    () => Date.now()
+  );
 
-            <div className="registrations-heading-copy">
+  const alive = useRef(false);
+  const busy = useRef(false);
 
-              <span className="registrations-eyebrow">
-                <span className="registrations-eyebrow-dot" />
-                YOUR CAMPUS EXPERIENCES
-              </span>
+  useEffect(() => {
+    alive.current = true;
 
-              <h1>
-                Your events.
-                <br />
-                <span>Your moments.</span>
-              </h1>
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 30000);
 
-              <p>
-                Every event you've signed up for,
-                every experience waiting to happen.
-                It's all right here.
-              </p>
+    return () => {
+      alive.current = false;
+      clearInterval(timer);
+    };
+  }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    setLoading(true);
+    setError("");
+
+    getMyRegistrations()
+      .then((data) => {
+        if (!Array.isArray(data)) {
+          throw new Error(
+            "Unable to read your registrations."
+          );
+        }
+
+        if (active) {
+          setItems(data);
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setError(messageFrom(error));
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [revision]);
+
+  const statistics = useMemo(
+    () => ({
+      active: items.filter(
+        (item) => item.status === "registered"
+      ).length,
+
+      upcoming: items.filter(
+        (item) =>
+          item.status === "registered" &&
+          eventState(item, now) === "upcoming"
+      ).length,
+
+      past: items.filter(
+        (item) =>
+          item.status === "registered" &&
+          eventState(item, now) === "past"
+      ).length,
+
+      cancelled: items.filter(
+        (item) => item.status === "cancelled"
+      ).length,
+    }),
+    [items, now]
+  );
+
+  const visible = useMemo(
+    () =>
+      items
+        .filter(
+          (item) =>
+            filter === "all" ||
+            eventState(item, now) === filter
+        )
+        .sort(
+          (a, b) =>
+            (Date.parse(a.event_start) || 0) -
+            (Date.parse(b.event_start) || 0)
+        ),
+    [items, filter, now]
+  );
+
+  async function cancel(item) {
+    if (
+      busy.current ||
+      item.status !== "registered" ||
+      eventState(item, Date.now()) !== "upcoming"
+    ) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Cancel your registration for "${item.event_title}"?`
+    );
+
+    if (!confirmed) return;
+
+    busy.current = true;
+
+    setCancelling(item.id);
+    setActionError("");
+    setNotice("");
+
+    try {
+      await cancelRegistration(item.id);
+
+      if (!alive.current) return;
+
+      setItems((previous) =>
+        previous.map((row) =>
+          row.id === item.id
+            ? {
+                ...row,
+                status: "cancelled",
+              }
+            : row
+        )
+      );
+
+      setNotice(
+        `Your registration for "${item.event_title}" was cancelled.`
+      );
+    } catch (error) {
+      if (alive.current) {
+        setActionError(messageFrom(error));
+      }
+    } finally {
+      busy.current = false;
+
+      if (alive.current) {
+        setCancelling(null);
+      }
+    }
+  }
+
+  return (
+    <main className="mr-page">
+      <div className="mr-shell">
+        <header className="mr-heading">
+          <div>
+            <p className="mr-eyebrow">
+              Your campus plans
+            </p>
+
+            <h1>
+              Your events.
+              <br />
+              <span>Your moments.</span>
+            </h1>
+
+            <p>
+              Your tickets, campus plans and
+              certificates, together.
+            </p>
+          </div>
+
+          <Link
+            className="mr-button mr-button--outline"
+            to="/events"
+          >
+            Explore more events
+            <span aria-hidden="true">→</span>
+          </Link>
+        </header>
+
+        {!loading && !error && (
+          <dl className="mr-statistics">
+            <div>
+              <dt>Active registrations</dt>
+              <dd>{statistics.active}</dd>
             </div>
 
-            <div
-              className="registrations-heading-art"
-              aria-hidden="true"
-            >
-              <div className="registrations-heading-circle">
-                <span>✳</span>
-              </div>
-
-              <span className="registrations-heading-art-text">
-                SHOW UP.
-                <br />
-                STAND OUT.
-              </span>
+            <div>
+              <dt>Upcoming</dt>
+              <dd>{statistics.upcoming}</dd>
             </div>
 
-          </header>
-
-          {/* ================================================
-              SUMMARY CARDS
-          ================================================ */}
-
-          {!loading && !error && (
-            <section
-              className="registrations-v2-stats"
-              aria-label="Registration statistics"
-            >
-
-              <article className="registrations-v2-stat registrations-v2-stat-primary">
-
-                <div>
-                  <span>ACTIVE REGISTRATIONS</span>
-                  <strong>{statistics.active}</strong>
-                </div>
-
-                <span
-                  className="registrations-stat-decoration"
-                  aria-hidden="true"
-                >
-                  ✳
-                </span>
-
-                <p>Your reserved campus experiences</p>
-
-              </article>
-
-              <article className="registrations-v2-stat">
-
-                <div>
-                  <span>UPCOMING EVENTS</span>
-                  <strong>{statistics.upcoming}</strong>
-                </div>
-
-                <p>Experiences still ahead</p>
-
-              </article>
-
-              <article className="registrations-v2-stat registrations-v2-stat-lavender">
-
-                <div>
-                  <span>STARTED / PAST</span>
-                  <strong>{statistics.past}</strong>
-                </div>
-
-                <p>Registered events already started</p>
-
-              </article>
-
-            </section>
-          )}
-
-          {/* ================================================
-              FEEDBACK
-          ================================================ */}
-
-          {message && (
-            <div
-              className="registration-success"
-              role="status"
-            >
-              ✓ {message}
+            <div>
+              <dt>Started / past</dt>
+              <dd>{statistics.past}</dd>
             </div>
-          )}
+          </dl>
+        )}
 
-          {error && (
-            <div
-              className="registration-error"
-              role="alert"
-            >
-              {error}
-            </div>
-          )}
+        {notice && (
+          <p className="mr-notice" role="status">
+            {notice}
+          </p>
+        )}
 
-          {/* ================================================
-              SECTION HEADER AND FILTERS
-          ================================================ */}
+        {actionError && (
+          <p className="mr-error" role="alert">
+            {actionError}
+          </p>
+        )}
 
-          <section className="registrations-v2-section">
-
-            <div className="registrations-v2-section-heading">
-
-              <div>
-                <span className="registrations-eyebrow">
-                  YOUR EVENT COLLECTION
-                </span>
-
-                <h2>My experiences<span>.</span></h2>
-              </div>
-
-              {!loading && (
-                <Link
-                  to="/events"
-                  className="registrations-explore-link"
-                >
-                  Explore more events ↗
-                </Link>
-              )}
-
-            </div>
+        <section
+          className="mr-experiences"
+          aria-labelledby="mr-experiences-title"
+          aria-busy={loading}
+        >
+          <div className="mr-section-heading">
+            <h2 id="mr-experiences-title">
+              My experiences.
+            </h2>
 
             {!loading && !error && (
-              <div
-                className="registrations-v2-filters"
-                role="group"
-                aria-label="Filter registrations"
-              >
+              <span>
+                {items.length}{" "}
+                {items.length === 1
+                  ? "registration"
+                  : "registrations"}
+              </span>
+            )}
+          </div>
 
-                {[
-                  {
-                    value: "all",
-                    label: "All events",
-                    count: registrations.length,
-                  },
-                  {
-                    value: "upcoming",
-                    label: "Upcoming",
-                    count: statistics.upcoming,
-                  },
-                  {
-                    value: "past",
-                    label: "Started / Past",
-                    count: statistics.past,
-                  },
-                  {
-                    value: "cancelled",
-                    label: "Cancelled",
-                    count: statistics.cancelled,
-                  },
-                ].map((filter) => (
-                  <button
-                    key={filter.value}
-                    type="button"
-                    className={
-                      activeFilter === filter.value
-                        ? "registrations-filter-active"
+          {!loading && !error && (
+            <div
+              className="mr-filters"
+              role="group"
+              aria-label="Filter registrations"
+            >
+              {[
+                [
+                  "all",
+                  "All events",
+                  items.length,
+                ],
+                [
+                  "upcoming",
+                  "Upcoming",
+                  statistics.upcoming,
+                ],
+                [
+                  "past",
+                  "Started / Past",
+                  statistics.past,
+                ],
+                [
+                  "cancelled",
+                  "Cancelled",
+                  statistics.cancelled,
+                ],
+              ].map(([value, label, total]) => (
+                <button
+                  type="button"
+                  key={value}
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                >
+                  {label}
+                  <span>{total}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="mr-empty" role="status">
+              Loading your campus experiences…
+            </div>
+          ) : error ? (
+            <div className="mr-empty" role="alert">
+              <h3>
+                We couldn’t load your registrations.
+              </h3>
+
+              <p>{error}</p>
+
+              <button
+                className="mr-button"
+                onClick={() =>
+                  setRevision((value) => value + 1)
+                }
+              >
+                Try again
+              </button>
+            </div>
+          ) : !visible.length ? (
+            <div className="mr-empty">
+              <h3>
+                {items.length
+                  ? "No events in this category."
+                  : "Your next experience is waiting."}
+              </h3>
+
+              <p>
+                {items.length
+                  ? "Try another filter to see your registrations."
+                  : "Explore campus events and find something you want to be part of."}
+              </p>
+
+              {items.length ? (
+                <button
+                  className="mr-button"
+                  onClick={() => setFilter("all")}
+                >
+                  Show all registrations →
+                </button>
+              ) : (
+                <Link
+                  className="mr-button"
+                  to="/events"
+                >
+                  Discover events →
+                </Link>
+              )}
+            </div>
+          ) : (
+            <div className="mr-list">
+              {visible.map((item, index) => {
+                const state = eventState(item, now);
+
+                const active =
+                  item.status === "registered";
+
+                return (
+                  <article
+                    className={`mr-card ${
+                      state === "cancelled"
+                        ? "mr-card--cancelled"
                         : ""
-                    }
-                    onClick={() =>
-                      setActiveFilter(filter.value)
-                    }
-                    aria-pressed={
-                      activeFilter === filter.value
-                    }
+                    }`}
+                    key={item.id}
+                    style={{
+                      "--mr-index": Math.min(index, 6),
+                    }}
                   >
-                    {filter.label}
+                    <div className="mr-cover">
+                      <EventCover
+                        category={item.event_category}
+                        showLabel
+                      />
+                    </div>
 
-                    <span>{filter.count}</span>
-                  </button>
-                ))}
+                    <div className="mr-card-copy">
+                      <p className="mr-category">
+                        {getCategoryLabel(
+                          item.event_category
+                        )}
+                      </p>
 
-              </div>
-            )}
+                      <h3>{item.event_title}</h3>
 
-            {/* LOADING */}
+                      <p className="mr-detail">
+                        <span aria-hidden="true">
+                          ◷
+                        </span>
 
-            {(loading || authLoading) && (
-              <div
-                className="registrations-v2-loading"
-                role="status"
-              >
-                <span className="registrations-loading-icon">
-                  ✳
-                </span>
+                        {formatEventDateTime(
+                          item.event_start
+                        )}
+                      </p>
 
-                Loading your campus experiences...
-              </div>
-            )}
+                      <p className="mr-detail">
+                        <span aria-hidden="true">
+                          ⌖
+                        </span>
 
-            {/* NO REGISTRATIONS */}
+                        {item.event_venue ||
+                          "Venue to be announced"}
+                      </p>
 
-            {!loading &&
-              !error &&
-              registrations.length === 0 && (
+                      <span
+                        className={`mr-lifecycle mr-lifecycle--${state}`}
+                      >
+                        {state === "upcoming"
+                          ? "Coming up"
+                          : state === "past"
+                            ? "Started / past"
+                            : state === "cancelled"
+                              ? "Registration cancelled"
+                              : "Date unavailable"}
+                      </span>
+                    </div>
 
-                <div className="registrations-empty">
+                    <div className="mr-card-actions">
+                      <span
+                        className={`mr-registration-status ${
+                          active
+                            ? "is-registered"
+                            : ""
+                        }`}
+                      >
+                        {active
+                          ? "Registered"
+                          : item.status === "cancelled"
+                            ? "Cancelled"
+                            : item.status}
+                      </span>
 
-                  <span>✳</span>
-
-                  <h2>
-                    Your next experience is waiting.
-                  </h2>
-
-                  <p>
-                    You haven't registered for an event yet.
-                    Find something exciting happening
-                    around campus.
-                  </p>
-
-                  <Link to="/events">
-                    Discover Events ↗
-                  </Link>
-
-                </div>
-              )}
-
-            {/* FILTER EMPTY STATE */}
-
-            {!loading &&
-              !error &&
-              registrations.length > 0 &&
-              filteredRegistrations.length === 0 && (
-
-                <div className="registrations-empty">
-
-                  <span>✳</span>
-
-                  <h2>No events in this category.</h2>
-
-                  <p>
-                    Try another filter to see
-                    your registrations.
-                  </p>
-
-                  <button
-                    type="button"
-                    className="registrations-clear-filter"
-                    onClick={() =>
-                      setActiveFilter("all")
-                    }
-                  >
-                    Show all registrations →
-                  </button>
-
-                </div>
-              )}
-
-            {/* ================================================
-                REGISTRATION CARDS
-            ================================================ */}
-
-            {!loading &&
-              filteredRegistrations.length > 0 && (
-
-                <div className="registrations-list registrations-v2-list">
-
-                  {filteredRegistrations.map(
-                    (registration, index) => {
-
-                      const state =
-                        getEventState(registration);
-
-                      const isCancelled =
-                        state === "cancelled";
-
-                      const isPast =
-                        state === "past";
-
-                      const isUpcoming =
-                        state === "upcoming";
-
-                      return (
-                        <article
-                          className={`registration-card registration-v2-card ${
-                            isCancelled
-                              ? "registration-v2-cancelled"
-                              : ""
-                          }`}
-                          key={registration.id}
-                          style={{
-                            "--registration-index":
-                              Math.min(index, 8),
-                          }}
+                      {active && (
+                        <Link
+                          className="mr-button"
+                          to={`/my-registrations/${item.id}/ticket`}
+                          aria-label={`View ticket for ${item.event_title}`}
                         >
+                          View ticket ↗
+                        </Link>
+                      )}
 
-                          {/* EVENT ARTWORK */}
+                      <Link
+                        className="mr-event-link"
+                        to={`/events/${item.event}`}
+                      >
+                        View event →
+                      </Link>
 
-                          <div
-                            className={`registration-v2-artwork event-category-${registration.event_category}`}
-                            aria-hidden="true"
+                      {active &&
+                        state === "upcoming" && (
+                          <button
+                            type="button"
+                            className="mr-cancel"
+                            onClick={() => cancel(item)}
+                            disabled={
+                              cancelling !== null
+                            }
                           >
+                            {cancelling === item.id
+                              ? "Cancelling…"
+                              : "Cancel registration"}
+                          </button>
+                        )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-                            <span className="registration-v2-art-label">
-                              EVENTHUB / CAMPUS
-                            </span>
+        <Reveal>
+          <StudentCertificates />
+        </Reveal>
 
-                            <EventArtworkIcon
-                              event={{
-                                title:
-                                  registration.event_title,
-                                category:
-                                  registration.event_category,
-                              }}
-                            />
+        <footer className="mr-footer">
+          <Link to="/">
+            ← Back to EventHub
+          </Link>
 
-                            <span className="registration-v2-art-bottom">
-                              SHOW UP.
-                            </span>
-
-                          </div>
-
-                          {/* EVENT INFORMATION */}
-
-                          <div className="registration-v2-content">
-
-                            <span className="registration-category">
-                              {getCategoryLabel(
-                                registration.event_category
-                              )}
-                            </span>
-
-                            <h3>
-                              {registration.event_title}
-                            </h3>
-
-                            <div className="registration-v2-event-details">
-
-                              <div>
-                                <span aria-hidden="true">◷</span>
-
-                                {formatEventDateTime(
-                                  registration.event_start
-                                )}
-                              </div>
-
-                              <div>
-                                <span aria-hidden="true">⌖</span>
-
-                                {registration.event_venue}
-                              </div>
-
-                            </div>
-
-                            <div className="registration-v2-event-state">
-
-                              {isUpcoming && (
-                                <span className="registration-v2-upcoming-label">
-                                  ✦ Coming up
-                                </span>
-                              )}
-
-                              {isPast && (
-                                <span className="registration-v2-past-label">
-                                  Event started or passed
-                                </span>
-                              )}
-
-                              {isCancelled && (
-                                <span className="registration-v2-cancelled-label">
-                                  Registration cancelled
-                                </span>
-                              )}
-
-                            </div>
-
-                          </div>
-
-                          {/* ACTIONS */}
-
-                          <div className="registration-card-actions registration-v2-actions">
-
-                            <span
-                              className={
-                                isCancelled
-                                  ? "registration-status cancelled"
-                                  : "registration-status registered"
-                              }
-                            >
-                              {isCancelled
-                                ? "Cancelled"
-                                : "Registered"}
-                            </span>
-
-                            {!isCancelled && (
-                              <Link
-                                to={`/my-registrations/${registration.id}/ticket`}
-                                className="registration-ticket-link"
-                              >
-                                View Ticket
-                                <span aria-hidden="true">
-                                  ↗
-                                </span>
-                              </Link>
-                            )}
-
-                            <Link
-                              to={`/events/${registration.event}`}
-                              className="registration-v2-event-link"
-                            >
-                              View event →
-                            </Link>
-
-                            {!isCancelled && !isPast && (
-                              <button
-                                type="button"
-                                className="registration-v2-cancel-button"
-                                onClick={() =>
-                                  handleCancel(registration)
-                                }
-                                disabled={
-                                  cancellingId !== null
-                                }
-                              >
-                                {cancellingId ===
-                                registration.id
-                                  ? "Cancelling..."
-                                  : "Cancel registration"}
-                              </button>
-                            )}
-
-                          </div>
-
-                        </article>
-                      );
-                    }
-                  )}
-
-                </div>
-              )}
-
-          </section>
-
-        </div>
-      </main>
-    </>
+          <strong>
+            Show up. Stand out.
+          </strong>
+        </footer>
+      </div>
+    </main>
   );
 }

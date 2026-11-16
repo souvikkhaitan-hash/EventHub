@@ -136,3 +136,5 @@ coverage/
 backups/
 *.backup
 *.dump
+
+backend/private_media/

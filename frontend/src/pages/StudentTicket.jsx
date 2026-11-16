@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-
 import {
   Link,
   Navigate,
@@ -9,35 +8,23 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 
 import Navbar from "../components/Navbar";
+import EventCover from "../components/EventCover";
+
 import { useAuth } from "../context/AuthContext";
 
-import { getStudentTicket } from "../services/events";
+import {
+  getStudentTicket,
+  getMyRegistrations,
+} from "../services/events";
 
-import "../styles/studentTicket.css";
+import {
+  formatEventDateTime,
+  getCategoryLabel,
+} from "../utils/eventFormat";
 
-// ============================================================
-// EVENTHUB 2.0 — DIGITAL CAMPUS PASS
-// ============================================================
+import "../styles/ticket-editorial.css";
 
-function formatTicketDate(value) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "—";
-
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Asia/Kolkata",
-    timeZoneName: "short",
-  }).format(date);
-}
-
-function getErrorMessage(error) {
+function messageFrom(error) {
   return (
     error?.details?.message ||
     error?.details?.detail ||
@@ -46,499 +33,456 @@ function getErrorMessage(error) {
   );
 }
 
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
-
 export default function StudentTicket() {
   const { registrationId } = useParams();
+  const { user, loading } = useAuth();
 
-  const { user, loading: authLoading } = useAuth();
+  if (loading) {
+    return (
+      <>
+        <Navbar />
 
-  const [ticket, setTicket] = useState(null);
+        <main className="tp-page">
+          <p role="status">
+            Loading your account…
+          </p>
+        </main>
+      </>
+    );
+  }
 
-  const [loading, setLoading] = useState(true);
-
-  const [error, setError] = useState("");
-
-  // ==========================================================
-  // LOAD TICKET
-  // ==========================================================
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    if (!user || user.is_organizer) {
-      setLoading(false);
-      return;
-    }
-
-    let active = true;
-
-    async function loadTicket() {
-      setLoading(true);
-      setError("");
-      setTicket(null);
-
-      try {
-        const response = await getStudentTicket(
-          registrationId
-        );
-
-        if (active) {
-          setTicket(response.ticket);
-        }
-      } catch (err) {
-        if (active) {
-          setError(getErrorMessage(err));
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadTicket();
-
-    return () => {
-      active = false;
-    };
-  }, [registrationId, user, authLoading]);
-
-  // ==========================================================
-  // ROLE PROTECTION
-  // ==========================================================
-
-  if (!authLoading && !user) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!authLoading && user?.is_organizer) {
+  if (user.is_organizer) {
     return <Navigate to="/organizer" replace />;
   }
-
-  // ==========================================================
-  // PAGE
-  // ==========================================================
 
   return (
     <>
       <Navbar />
 
-      <main className="student-ticket-page student-ticket-v2">
+      <TicketContent
+        key={`${registrationId}:${user.id ?? user.username}`}
+        registrationId={registrationId}
+        user={user}
+      />
+    </>
+  );
+}
 
-        <div className="container">
+function TicketContent({
+  registrationId,
+  user,
+}) {
+  const [revision, setRevision] = useState(0);
 
-          {/* BACK NAVIGATION */}
+  const [result, setResult] = useState({
+    revision: -1,
+    ticket: null,
+    error: "",
+  });
 
-          <Link
-            to="/my-registrations"
-            className="ticket-back-link"
+  const [registration, setRegistration] =
+    useState(null);
+
+  const [now, setNow] = useState(
+    () => Date.now()
+  );
+
+  const loading = result.revision !== revision;
+
+  // Hide an older QR while refreshing or after an API error.
+  const ticket =
+    loading || result.error
+      ? null
+      : result.ticket;
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Load the authenticated student's actual ticket.
+  useEffect(() => {
+    let active = true;
+
+    getStudentTicket(registrationId)
+      .then((response) => {
+        if (
+          !response?.ticket ||
+          typeof response.ticket.token !== "string" ||
+          !response.ticket.token.trim()
+        ) {
+          throw new Error(
+            "This ticket has no valid entry code. Please try again."
+          );
+        }
+
+        if (active) {
+          setResult({
+            revision,
+            ticket: response.ticket,
+            error: "",
+          });
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setResult({
+            revision,
+            ticket: null,
+            error: messageFrom(error),
+          });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [registrationId, revision]);
+
+  // The existing ticket API does not include its category.
+  // Reuse registration metadata to select the matching photo.
+  useEffect(() => {
+    let active = true;
+
+    getMyRegistrations()
+      .then((items) => {
+        if (active && Array.isArray(items)) {
+          const matchingRegistration = items.find(
+            (item) =>
+              String(item.id) ===
+              String(registrationId)
+          );
+
+          setRegistration(
+            matchingRegistration || null
+          );
+        }
+      })
+      .catch(() => {
+        // Category metadata must not block ticket access.
+        // EventCover will use the general campus photo.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [registrationId]);
+
+  const category =
+    ticket?.event_category ||
+    registration?.event_category;
+
+  const starts = Date.parse(ticket?.event_start);
+  const ends = Date.parse(ticket?.event_end);
+
+  const ended =
+    Number.isFinite(ends) && now >= ends;
+
+  const started =
+    Number.isFinite(starts) && now >= starts;
+
+  const eventState = ended
+    ? "Event has ended"
+    : started
+      ? "Event in progress"
+      : Number.isFinite(starts)
+        ? "Upcoming event"
+        : "Event timing unavailable";
+
+  const year = Number.isFinite(starts)
+    ? new Intl.DateTimeFormat("en-IN", {
+        year: "numeric",
+        timeZone: "Asia/Kolkata",
+      }).format(new Date(starts))
+    : "CAMPUS";
+
+  function refresh() {
+    if (!loading) {
+      setRevision((value) => value + 1);
+    }
+  }
+
+  return (
+    <main className="tp-page">
+      <div className="tp-shell">
+        <Link
+          className="tp-back"
+          to="/my-registrations"
+        >
+          ← Back to My Registrations
+        </Link>
+
+        <header className="tp-heading">
+          <div>
+            <h1>
+              Your ticket.{" "}
+              <span>Your moment.</span>
+            </h1>
+
+            <p>Keep your campus pass handy.</p>
+          </div>
+
+          <span
+            className="tp-heading-mark"
+            aria-hidden="true"
           >
-            ← Back to My Registrations
-          </Link>
+            ↗
+          </span>
+        </header>
 
-          {/* ================================================
-              PAGE HEADING
-          ================================================ */}
+        {loading ? (
+          <div
+            className="tp-message"
+            role="status"
+          >
+            Preparing your digital campus pass…
+          </div>
+        ) : result.error ? (
+          <div
+            className="tp-message tp-error"
+            role="alert"
+          >
+            <h2>Ticket unavailable.</h2>
 
-          <header className="ticket-page-heading ticket-v2-heading">
+            <p>{result.error}</p>
 
-            <div>
-
-              <span className="ticket-v2-eyebrow">
-                <span aria-hidden="true">✳</span>
-
-                YOUR DIGITAL CAMPUS PASS
-              </span>
-
-              <h1>
-                Your ticket.
-                <br />
-                <span>Your moment.</span>
-              </h1>
-
-              <p>
-                One ticket. One experience.
-                Everything you need to show up
-                and make it count.
-              </p>
-
-            </div>
-
-            <div
-              className="ticket-v2-heading-art"
-              aria-hidden="true"
+            <button
+              type="button"
+              className="tp-button"
+              onClick={refresh}
             >
-              <span>↗</span>
-            </div>
+              Try again
+            </button>
 
-          </header>
-
-          {/* LOADING */}
-
-          {(loading || authLoading) && (
-            <div
-              className="ticket-message"
-              role="status"
+            <Link to="/my-registrations">
+              Return to My Registrations →
+            </Link>
+          </div>
+        ) : ticket && (
+          <>
+            <article
+              className="tp-pass"
+              aria-label={`Digital ticket for ${ticket.event_title}`}
             >
-              Preparing your digital campus pass...
-            </div>
-          )}
-
-          {/* ERROR */}
-
-          {!loading && !authLoading && error && (
-            <div
-              className="ticket-message ticket-error"
-              role="alert"
-            >
-              <h2>Ticket unavailable.</h2>
-
-              <p>{error}</p>
-
-              <Link to="/my-registrations">
-                Return to My Registrations →
-              </Link>
-            </div>
-          )}
-
-          {/* ================================================
-              DIGITAL TICKET
-          ================================================ */}
-
-          {!loading && !authLoading && ticket && (
-
-            <div className="ticket-wrapper ticket-v2-wrapper">
-
-              {/* TICKET */}
-
-              <article className="digital-ticket ticket-v2-pass">
-
-                {/* HEADER */}
-
-                <div className="digital-ticket-header ticket-v2-pass-header">
-
-                  <div className="ticket-brand">
-
+              <div className="tp-event-side">
+                <div className="tp-brand-bar">
+                  <div>
                     <img
                       src="/eventhub-logo.svg"
                       alt=""
-                      className="ticket-v2-brand-logo"
                     />
 
                     <strong>EventHub</strong>
-
                   </div>
 
-                  <span className="ticket-edition">
-                    CAMPUS PASS / {new Date().getFullYear()}
+                  <span>
+                    Campus pass / {year}
                   </span>
-
                 </div>
 
-                {/* EVENT INFORMATION */}
-
-                <div className="digital-ticket-event ticket-v2-event">
-
-                  <div className="ticket-v2-event-top">
-
-                    <span className="ticket-eyebrow">
-                      YOUR EVENT ACCESS
+                <div className="tp-event-body">
+                  <div className="tp-meta">
+                    <span>
+                      {category
+                        ? getCategoryLabel(category)
+                        : "Campus event"}
                     </span>
 
-                    <span className="ticket-v2-ticket-number">
+                    <span>
                       #{ticket.registration}
                     </span>
-
                   </div>
 
-                  <h2>
-                    {ticket.event_title}
-                  </h2>
+                  <h2>{ticket.event_title}</h2>
 
-                  <div className="ticket-v2-info-grid">
-
-                    <div className="ticket-v2-info-item">
-
-                      <span className="ticket-v2-info-icon">
-                        ◷
-                      </span>
-
-                      <div>
-                        <span>EVENT DATE</span>
-
-                        <strong>
-                          {formatTicketDate(
-                            ticket.event_start
-                          )}
-                        </strong>
-                      </div>
-
-                    </div>
-
-                    <div className="ticket-v2-info-item">
-
-                      <span className="ticket-v2-info-icon">
-                        ⌖
-                      </span>
-
-                      <div>
-                        <span>VENUE</span>
-
-                        <strong>
-                          {ticket.event_venue}
-                        </strong>
-                      </div>
-
-                    </div>
-
-                    <div className="ticket-v2-info-item">
-
-                      <span className="ticket-v2-info-icon">
-                        ✳
-                      </span>
-
-                      <div>
-                        <span>REGISTERED AS</span>
-
-                        <strong>
-                          {user?.username || "Student"}
-                        </strong>
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                {/* PERFORATED DIVIDER */}
-
-                <div
-                  className="ticket-perforation"
-                  aria-hidden="true"
-                />
-
-                {/* ============================================
-                    QR CODE
-                ============================================ */}
-
-                <div className="digital-ticket-qr-section ticket-v2-qr-section">
-
-                  <span className="ticket-eyebrow">
-                    SCAN TO CHECK IN
-                  </span>
-
-                  <h3>
-                    Your entry code.
-                  </h3>
-
-                  <p className="ticket-v2-qr-intro">
-                    Present this QR code at
-                    the event entrance.
-                  </p>
-
-                  <div
-                    className="ticket-qr-container ticket-v2-qr-container"
-                    role="img"
-                    aria-label="Your personal digital entry QR code"
-                  >
-                    <QRCodeSVG
-                      value={ticket.token}
-                      size={220}
-                      level="H"
-                      marginSize={2}
-                      bgColor="#ffffff"
-                      fgColor="#18191d"
+                  <div className="tp-cover">
+                    <EventCover
+                      category={category}
+                      showLabel
                     />
                   </div>
 
-                  {/* CHECK-IN STATUS */}
+                  <dl className="tp-facts">
+                    <div>
+                      <dt>Event date</dt>
 
-                  {ticket.checked_in_at ? (
+                      <dd>
+                        {formatEventDateTime(
+                          ticket.event_start
+                        )}
+                      </dd>
 
-                    <div className="ticket-v2-checkin ticket-v2-checked-in">
-
-                      <span className="ticket-v2-checkin-icon">
-                        ✓
-                      </span>
-
-                      <div>
-                        <strong>
-                          Attendance confirmed
-                        </strong>
-
-                        <span>
-                          Checked in on{" "}
-                          {formatTicketDate(
-                            ticket.checked_in_at
-                          )}
-                        </span>
-                      </div>
-
+                      <dd className="tp-event-state">
+                        {eventState}
+                      </dd>
                     </div>
 
-                  ) : (
+                    <div>
+                      <dt>Venue</dt>
 
-                    <div className="ticket-v2-checkin ticket-v2-pending">
-
-                      <span className="ticket-v2-checkin-icon">
-                        ◷
-                      </span>
-
-                      <div>
-                        <strong>
-                          Ready for check-in
-                        </strong>
-
-                        <span>
-                          Your attendance will be
-                          recorded when the organizer
-                          scans this ticket.
-                        </span>
-                      </div>
-
+                      <dd>
+                        {ticket.event_venue ||
+                          "To be announced"}
+                      </dd>
                     </div>
 
-                  )}
+                    <div>
+                      <dt>Registered as</dt>
 
+                      <dd>
+                        {user.username || "Student"}
+                      </dd>
+                    </div>
+                  </dl>
                 </div>
+              </div>
 
-                {/* FOOTER */}
-
-                <div className="digital-ticket-footer ticket-v2-footer">
-
-                  <span>
-                    ONE TICKET. ONE EXPERIENCE.
-                  </span>
-
-                  <strong>
-                    SHOW UP. STAND OUT.
-                  </strong>
-
-                </div>
-
-              </article>
-
-              {/* ================================================
-                  INSTRUCTIONS PANEL
-              ================================================ */}
-
-              <aside className="ticket-instructions ticket-v2-instructions">
-
-                <span className="ticket-v2-instructions-eyebrow">
-                  BEFORE THE BIG DAY
-                </span>
-
-                <h3>
-                  Ready to
-                  <br />
-                  <span>show up?</span>
+              <section
+                className="tp-entry-side"
+                aria-labelledby="tp-qr-title"
+              >
+                <h3 id="tp-qr-title">
+                  Your entry code
                 </h3>
 
-                <p className="ticket-v2-instructions-intro">
-                  A few things to remember before
-                  your campus experience begins.
+                <div
+                  className="tp-qr"
+                  role="img"
+                  aria-label="Your personal entry QR code"
+                >
+                  <QRCodeSVG
+                    value={ticket.token}
+                    size={256}
+                    level="H"
+                    marginSize={4}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                  />
+                </div>
+
+                <p className="tp-qr-caption">
+                  Present this code to the organiser
+                  at the entrance.
                 </p>
 
-                <div className="ticket-v2-steps">
-
-                  <div className="ticket-v2-step">
-
-                    <span className="ticket-v2-step-number">
-                      01
-                    </span>
-
-                    <div>
-                      <strong>Keep your ticket ready</strong>
-
-                      <p>
-                        Open this digital pass on
-                        your phone when you reach
-                        the event entrance.
-                      </p>
-                    </div>
-
-                  </div>
-
-                  <div className="ticket-v2-step">
-
-                    <span className="ticket-v2-step-number">
-                      02
-                    </span>
-
-                    <div>
-                      <strong>Arrive on time</strong>
-
-                      <p>
-                        Check-in opens 30 minutes
-                        before the event begins and
-                        closes when it ends.
-                      </p>
-                    </div>
-
-                  </div>
-
-                  <div className="ticket-v2-step">
-
-                    <span className="ticket-v2-step-number">
-                      03
-                    </span>
-
-                    <div>
-                      <strong>Scan and you're in</strong>
-
-                      <p>
-                        The organizer scans your
-                        personal QR code to
-                        verify your attendance.
-                      </p>
-                    </div>
-
-                  </div>
-
-                </div>
-
-                {/* SECURITY NOTE */}
-
-                <div className="ticket-v2-security-note">
-
-                  <span aria-hidden="true">
-                    ◈
-                  </span>
-
-                  <p>
-                    <strong>Keep your pass private.</strong>
-                    <br />
-                    Your QR code is unique.
-                    Avoid sharing screenshots
-                    or forwarding your ticket.
-                  </p>
-
-                </div>
-
-                {/* EVENT LINK */}
-
-                <Link
-                  to={`/events/${ticket.event_id}`}
-                  className="ticket-v2-event-link"
+                <div
+                  className={`tp-attendance ${
+                    ticket.checked_in_at
+                      ? "tp-attendance--confirmed"
+                      : ""
+                  }`}
+                  role="status"
                 >
-                  View Event Details
-
                   <span aria-hidden="true">
-                    ↗
+                    {ticket.checked_in_at
+                      ? "✓"
+                      : "ⓘ"}
                   </span>
-                </Link>
 
-              </aside>
+                  <div>
+                    <strong>
+                      {ticket.checked_in_at
+                        ? "Attendance confirmed"
+                        : "Not checked in"}
+                    </strong>
 
-            </div>
-          )}
+                    <p>
+                      {ticket.checked_in_at
+                        ? `Checked in ${formatEventDateTime(
+                            ticket.checked_in_at
+                          )}`
+                        : "Attendance has not been recorded."}
+                    </p>
+                  </div>
+                </div>
 
-        </div>
-      </main>
-    </>
+                <button
+                  className="tp-button tp-button--outline"
+                  type="button"
+                  onClick={refresh}
+                >
+                  ↻ &nbsp; Refresh status
+                </button>
+              </section>
+            </article>
+
+            <section
+              className="tp-instructions"
+              aria-labelledby="tp-instructions-title"
+            >
+              <h2 id="tp-instructions-title">
+                Before you arrive
+              </h2>
+
+              <ol>
+                {[
+                  [
+                    "Keep your ticket ready",
+                    "Open this page at the entrance.",
+                  ],
+                  [
+                    "Check event timing",
+                    "Check-in follows the organiser’s event schedule.",
+                  ],
+                  [
+                    "Scan at the entrance",
+                    "The organiser scans your QR to record attendance.",
+                  ],
+                ].map(([title, text], index) => (
+                  <li key={title}>
+                    <span>
+                      {`0${index + 1}`}
+                    </span>
+
+                    <div>
+                      <h3>{title}</h3>
+                      <p>{text}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <p className="tp-privacy">
+              <span aria-hidden="true">◇</span>
+
+              <span>
+                <strong>
+                  Keep your pass private.
+                </strong>{" "}
+                Your QR code is unique; avoid
+                sharing screenshots.
+              </span>
+            </p>
+
+            {ticket.event_id && (
+              <Link
+                className="tp-event-link"
+                to={`/events/${ticket.event_id}`}
+              >
+                View event details →
+              </Link>
+            )}
+          </>
+        )}
+
+        <footer className="tp-footer">
+          <Link to="/">
+            ← Back to EventHub
+          </Link>
+
+          <strong>
+            Show up. Stand out.
+          </strong>
+        </footer>
+      </div>
+    </main>
   );
 }

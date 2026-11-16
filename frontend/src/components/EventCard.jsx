@@ -5,8 +5,7 @@ import {
   formatEventTime,
   getCategoryLabel,
 } from "../utils/eventFormat";
-import EventArtworkIcon from "./EventArtworkIcon";
-import EventArtwork from "./EventArtwork";
+import EventCover from "./EventCover";
 
 // ============================================================
 // EVENT CARD HELPERS
@@ -135,43 +134,12 @@ export default function EventCard({
           EVENT POSTER
       ==================================================== */}
 
-      <div className="event-card-artwork">
-
-        <div className="event-card-artwork-top">
-
-          <span>
-            EVENTHUB / CAMPUS
-          </span>
-
-          <span
-            className="event-card-artwork-arrow"
-            aria-hidden="true"
-          >
-            ↗
-          </span>
-
-        </div>
-
-        <div
-          className="event-card-artwork-symbol"
-          aria-hidden="true"
-        >
-          <EventArtwork category={event.category} />
-        </div>
-
-        <div className="event-card-artwork-bottom">
-
-          <span>
-            {getCategoryLabel(event.category)}
-          </span>
-
-          <span>
-            SHOW UP.
-          </span>
-
-        </div>
-
-      </div>
+      <div className="event-card-artwork campus-cover">
+  <EventCover
+    category={event.category}
+    showLabel
+  />
+</div>
 
       {/* ====================================================
           EVENT INFORMATION

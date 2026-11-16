@@ -1,4 +1,9 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useState,
+} from "react";
+
 import { Link } from "react-router";
 
 import {
@@ -6,24 +11,43 @@ import {
   getEventRegistrationGrowth,
 } from "../services/events";
 
-import "../styles/organizer.css";
-import "../styles/analytics.css";
-import "../styles/analytics-v2.css";
+import {
+  getCategoryLabel,
+} from "../utils/eventFormat";
 
+import "../styles/analytics-editorial.css";
 
-// ============================================================
-// HELPER FUNCTIONS
-// ============================================================
-
-function formatPercentage(value) {
-  return `${Number(value || 0).toFixed(1)}%`;
+function number(value) {
+  return (
+    value != null &&
+    value !== "" &&
+    Number.isFinite(Number(value))
+  )
+    ? Math.max(0, Number(value))
+    : null;
 }
 
+function percentage(value) {
+  const result = number(value);
 
-function formatDate(value) {
+  return result === null
+    ? "—"
+    : `${result.toFixed(1)}%`;
+}
+
+function display(value) {
+  return number(value) ?? "—";
+}
+
+function dateLabel(value, short = false) {
   if (!value) return "—";
 
-  const date = new Date(value);
+  // Interpret date-only API values in the campus timezone.
+  const date = new Date(
+    /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? `${value}T00:00:00+05:30`
+      : value
+  );
 
   if (Number.isNaN(date.getTime())) {
     return "—";
@@ -32,1137 +56,908 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
     month: "short",
-    year: "numeric",
+    ...(short ? {} : { year: "numeric" }),
     timeZone: "Asia/Kolkata",
   }).format(date);
 }
 
-
-// Format a date-only string without timezone shifting.
-function formatChartDate(value) {
-  if (!value) return "—";
-
-  const [year, month, day] = value.split("-").map(Number);
-
-  const date = new Date(year, month - 1, day);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return date.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-  });
-}
-
-
-// Display readable API errors.
-function getErrorMessage(error) {
+function messageFrom(error) {
   return (
     error?.details?.message ||
     error?.details?.detail ||
     error?.message ||
-    "Something went wrong. Please try again."
+    "Unable to load analytics."
   );
 }
 
+// Daily bars and cumulative line share the same scale.
+function RegistrationChart({ growth }) {
+  const titleId = useId();
 
-// ============================================================
-// EVENT REGISTRATION GROWTH COMPONENT
-// ============================================================
+  if (!growth.length) {
+    return (
+      <div className="ap-empty">
+        <h3>No registration activity yet.</h3>
 
-function RegistrationGrowth({ events }) {
-  const [selectedEventId, setSelectedEventId] = useState(
-    events.length > 0 ? String(events[0].id) : ""
+        <p>
+          Recorded activity will appear here
+          when students register.
+        </p>
+      </div>
+    );
+  }
+
+  const width = Math.max(
+    420,
+    growth.length * 44
   );
 
-  const [growthData, setGrowthData] = useState(null);
+  const height = 250;
 
-  const [loading, setLoading] = useState(false);
+  const left = 45;
+  const right = 22;
+  const top = 28;
+  const bottom = 40;
 
-  const [error, setError] = useState("");
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
 
+  const maximum = Math.max(
+    1,
+    ...growth.flatMap((day) => [
+      number(day.daily_registrations) || 0,
+      number(day.cumulative_registrations) || 0,
+    ])
+  );
 
-  // ==========================================================
-  // LOAD SELECTED EVENT'S REGISTRATION GROWTH
-  // ==========================================================
+  // Integer tick marks work for both small and large counts.
+  const step = Math.max(
+    1,
+    Math.ceil(maximum / 4)
+  );
+
+  const ceiling =
+    Math.ceil(maximum / step) * step;
+
+  const ticks = Array.from(
+    { length: ceiling / step + 1 },
+    (_, index) => index * step
+  );
+
+  const slot = plotWidth / growth.length;
+
+  const x = (index) =>
+    left + slot * (index + 0.5);
+
+  const y = (value) =>
+    top + plotHeight * (1 - value / ceiling);
+
+  const points = growth
+    .map(
+      (day, index) =>
+        `${x(index)},${y(
+          number(day.cumulative_registrations) || 0
+        )}`
+    )
+    .join(" ");
+
+  const labelEvery = Math.max(
+    1,
+    Math.ceil(growth.length / 10)
+  );
+
+  return (
+    <>
+      <div
+        className="ap-chart-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label="Registration chart. Scroll horizontally for longer periods."
+      >
+        <svg
+          className="ap-chart"
+          viewBox={`0 0 ${width} ${height}`}
+          style={{ minWidth: width }}
+          role="img"
+          aria-labelledby={titleId}
+        >
+          <title id={titleId}>
+            Daily and cumulative current active
+            registrations. Exact values are available
+            in the data table below.
+          </title>
+
+          {ticks.map((tick) => (
+            <g key={tick}>
+              <line
+                x1={left}
+                x2={width - right}
+                y1={y(tick)}
+                y2={y(tick)}
+                stroke="#e1e4ec"
+              />
+
+              <text
+                x={left - 11}
+                y={y(tick) + 4}
+                textAnchor="end"
+                className="ap-axis-label"
+              >
+                {tick}
+              </text>
+            </g>
+          ))}
+
+          {growth.map((day, index) => {
+            const daily =
+              number(day.daily_registrations) || 0;
+
+            const barWidth = Math.min(
+              30,
+              slot * 0.45
+            );
+
+            const showDate =
+              index % labelEvery === 0 ||
+              index === growth.length - 1;
+
+            return (
+              <g key={day.date}>
+                <rect
+                  className="ap-daily-bar"
+                  x={x(index) - barWidth / 2}
+                  y={y(daily)}
+                  width={barWidth}
+                  height={Math.max(
+                    0,
+                    y(0) - y(daily)
+                  )}
+                  rx="3"
+                >
+                  <title>
+                    {dateLabel(day.date)}: {daily}
+                    {" "}daily registrations
+                  </title>
+                </rect>
+
+                {showDate && (
+                  <text
+                    x={x(index)}
+                    y={height - 13}
+                    textAnchor="middle"
+                    className="ap-axis-label"
+                  >
+                    {dateLabel(day.date, true)}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          {growth.length > 1 && (
+            <polyline
+              points={points}
+              fill="none"
+              stroke="#3659f5"
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {growth.map((day, index) => {
+            const cumulative =
+              number(
+                day.cumulative_registrations
+              ) || 0;
+
+            return (
+              <g key={day.date}>
+                <circle
+                  cx={x(index)}
+                  cy={y(cumulative)}
+                  r="4"
+                  fill="#3659f5"
+                >
+                  <title>
+                    {dateLabel(day.date)}:{" "}
+                    {cumulative} cumulative registrations
+                  </title>
+                </circle>
+
+                {growth.length <= 12 && (
+                  <text
+                    x={x(index)}
+                    y={y(cumulative) - 12}
+                    textAnchor="middle"
+                    className="ap-point-label"
+                  >
+                    {cumulative}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div className="ap-legend">
+        <span>
+          <i className="ap-legend-daily" />
+          Daily registrations
+        </span>
+
+        <span>
+          <i className="ap-legend-cumulative" />
+          Cumulative
+        </span>
+      </div>
+
+      <details className="ap-chart-data">
+        <summary>View chart data</summary>
+
+        <div
+          className="ap-table-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="Exact registration chart data"
+        >
+          <table>
+            <caption className="ap-sr-only">
+              Current active registrations
+              by registration date
+            </caption>
+
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Daily</th>
+                <th scope="col">Cumulative</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {growth.map((day) => (
+                <tr key={day.date}>
+                  <th scope="row">
+                    {dateLabel(day.date)}
+                  </th>
+
+                  <td>
+                    {display(day.daily_registrations)}
+                  </td>
+
+                  <td>
+                    {display(
+                      day.cumulative_registrations
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </>
+  );
+}
+
+function RegistrationActivity({ events }) {
+  const [selection, setSelection] = useState("");
+  const [revision, setRevision] = useState(0);
+
+  const eventId = events.some(
+    (event) => String(event.id) === selection
+  )
+    ? selection
+    : String(events[0]?.id ?? "");
+
+  const requestKey = `${eventId}:${revision}`;
+
+  const [result, setResult] = useState({
+    key: "",
+    data: null,
+    error: "",
+  });
+
+  // Prevent the previous event's data appearing under a new selection.
+  const loading =
+    Boolean(eventId) &&
+    result.key !== requestKey;
+
+  const data =
+    loading || result.key !== requestKey
+      ? null
+      : result.data;
 
   useEffect(() => {
-    if (!selectedEventId) {
-      setGrowthData(null);
-      setLoading(false);
-      return;
-    }
+    if (!eventId) return;
 
     let active = true;
 
-    async function loadGrowth() {
-      setLoading(true);
-      setError("");
-      setGrowthData(null);
-
-      try {
-        const response = await getEventRegistrationGrowth(
-          selectedEventId
-        );
+    getEventRegistrationGrowth(eventId)
+      .then((response) => {
+        if (
+          !response ||
+          !Array.isArray(response.growth) ||
+          !response.event ||
+          !response.summary
+        ) {
+          throw new Error(
+            "The server returned incomplete registration analytics."
+          );
+        }
 
         if (active) {
-          setGrowthData(response);
+          setResult({
+            key: requestKey,
+            data: response,
+            error: "",
+          });
         }
-      } catch (err) {
+      })
+      .catch((error) => {
         if (active) {
-          setError(getErrorMessage(err));
+          setResult({
+            key: requestKey,
+            data: null,
+            error: messageFrom(error),
+          });
         }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadGrowth();
+      });
 
     return () => {
       active = false;
     };
-  }, [selectedEventId]);
+  }, [eventId, requestKey]);
 
-
-  // ==========================================================
-  // EMPTY ORGANIZER STATE
-  // ==========================================================
-
-  if (events.length === 0) {
+  if (!events.length) {
     return (
-      <section className="analytics-trends-section">
-        <div className="organizer-section-heading">
-          <div>
-            <span className="organizer-eyebrow">
-              REGISTRATION ACTIVITY
-            </span>
+      <section className="ap-panel ap-empty">
+        <h2>No events to analyse yet.</h2>
 
-            <h2>Registration Growth</h2>
-          </div>
-        </div>
+        <p>
+          Create an event to start collecting
+          registrations and attendance.
+        </p>
 
-        <div className="organizer-empty-state">
-          <h3>No events available.</h3>
-
-          <p>
-            Create and publish an event to start
-            tracking registration growth.
-          </p>
-
-          <Link
-            to="/organizer/events/new"
-            className="organizer-primary-button"
-          >
-            Create Event →
-          </Link>
-        </div>
+        <Link
+          className="ap-button"
+          to="/organizer/events/new"
+        >
+          Create event →
+        </Link>
       </section>
     );
   }
 
+  const growth = data?.growth || [];
+  const period = data?.registration_period || {};
+  const summary = data?.summary || {};
+  const event = data?.event || {};
 
-  // ==========================================================
-  // PREPARE GROWTH DATA
-  // ==========================================================
-
-  const growth = Array.isArray(growthData?.growth)
-    ? growthData.growth
-    : [];
-
-  const summary = growthData?.summary || {};
-
-  const period = growthData?.registration_period || {};
-
-  const event = growthData?.event || {};
-
-  const registered = Number(summary.registered) || 0;
-
-  const capacity = Number(event.capacity) || 0;
-
-  const availableSeats =
-    Number(summary.available_seats) || 0;
-
-  const maximumRegistrations = Math.max(
-    1,
-    ...growth.map(
-      (day) =>
-        Number(day.cumulative_registrations) || 0
-    )
-  );
-
-  // Single-day data should have a compact presentation.
-  const isSingleDay = growth.length === 1;
-
-  const isLegacyEvent =
+  const legacy =
     period.start_source ===
     "first_recorded_registration";
 
-
-  // ==========================================================
-  // RENDER
-  // ==========================================================
-
   return (
-    <section className="analytics-trends-section">
-
-      {/* Heading */}
-
-      <div className="organizer-section-heading">
-        <div>
-          <span className="organizer-eyebrow">
-            REGISTRATION ACTIVITY
-          </span>
-
-          <h2>Registration Growth</h2>
-        </div>
-
-        <span className="organizer-event-count">
-          Event-specific analytics
-        </span>
-      </div>
-
-
-      <div className="analytics-trends-card">
-
-        {/* ================================================
-            EVENT SELECTOR
-        ================================================ */}
-
-        <div className="analytics-event-selector">
-
+    <div className="ap-activity-grid">
+      <section
+        className="ap-panel ap-registration-panel"
+        aria-busy={loading}
+      >
+        <div className="ap-chart-heading">
           <div>
-            <label htmlFor="analytics-event-select">
-              SELECT EVENT
+            <h2>Registration activity</h2>
+
+            <p>
+              Current active registrations
+              by registration date.
+            </p>
+          </div>
+
+          <div className="ap-selector">
+            <label htmlFor="ap-event">
+              Select event
             </label>
 
             <select
-              id="analytics-event-select"
-              value={selectedEventId}
-              onChange={(event) => {
-                setSelectedEventId(event.target.value);
-              }}
+              id="ap-event"
+              value={eventId}
+              onChange={(event) =>
+                setSelection(event.target.value)
+              }
             >
               {events.map((event) => (
                 <option
-                  value={event.id}
                   key={event.id}
+                  value={event.id}
                 >
                   {event.title}
                 </option>
               ))}
             </select>
           </div>
-
-          <span className="analytics-selector-caption">
-            Explore registration activity
-            for your events.
-          </span>
-
         </div>
 
-
-        {/* Loading */}
-
-        {loading && (
-          <div
-            className="analytics-growth-message"
-            role="status"
-          >
-            Loading registration growth...
+        {loading ? (
+          <div className="ap-empty" role="status">
+            Loading registration activity…
           </div>
-        )}
+        ) : result.error ? (
+          <div className="ap-empty" role="alert">
+            <p>{result.error}</p>
 
-
-        {/* Error */}
-
-        {!loading && error && (
-          <div
-            className="analytics-growth-error"
-            role="alert"
-          >
-            {error}
+            <button
+              className="ap-button"
+              onClick={() =>
+                setRevision((value) => value + 1)
+              }
+            >
+              Try again
+            </button>
           </div>
-        )}
-
-
-        {/* Growth Information */}
-
-        {!loading && !error && growthData && (
+        ) : data && (
           <>
-
-            {/* ============================================
-                REGISTRATION PERIOD
-            ============================================ */}
-
-            <div className="analytics-period-info">
-
-              <div>
-                <span>REGISTRATION START</span>
-
-                <strong>
-                  {period.published_at
-                    ? formatDate(period.published_at)
-                    : period.chart_start
-                    ? formatChartDate(
-                        period.chart_start
-                      )
-                    : "Not available"}
-                </strong>
-
-                {isLegacyEvent && (
-                  <small>
-                    First recorded active registration
-                  </small>
-                )}
-              </div>
-
-
-              <div>
-                <span>REGISTRATION DEADLINE</span>
-
-                <strong>
-                  {formatDate(
-                    period.registration_deadline
-                  )}
-                </strong>
-              </div>
-
-
-              <div>
-                <span>EVENT CAPACITY</span>
-
-                <strong>{capacity}</strong>
-              </div>
-
-            </div>
-
-
-            {/* ============================================
-                METRIC CARDS
-            ============================================ */}
-
-            <div className="analytics-growth-metrics">
-
-              <article>
-                <span>ACTIVE REGISTRATIONS</span>
-
-                <strong>{registered}</strong>
-
-                <p>Currently registered students</p>
-              </article>
-
-
-              <article>
-                <span>AVAILABLE SEATS</span>
-
-                <strong>{availableSeats}</strong>
-
-                <p>Remaining event capacity</p>
-              </article>
-
-
-              <article>
-                <span>CAPACITY UTILIZATION</span>
-
-                <strong>
-                  {formatPercentage(
-                    summary.capacity_utilization
-                  )}
-                </strong>
-
-                <p>Seats currently reserved</p>
-              </article>
-
-            </div>
-
-
-            {/* ============================================
-                SINGLE-DAY REGISTRATION ACTIVITY
-            ============================================ */}
-
-            {isSingleDay && (
-              <div className="analytics-single-day">
-
-                <div className="analytics-single-day-date">
-                  <span>RECORDED REGISTRATION ACTIVITY</span>
-
-                  <strong>
-                    {formatChartDate(growth[0].date)}
-                  </strong>
-                </div>
-
-                <div className="analytics-single-day-value">
-                  <strong>
-                    {growth[0].daily_registrations}
-                  </strong>
-
-                  <span>
-                    Active registrations recorded
-                    on this date
-                  </span>
-                </div>
-
-                <div className="analytics-single-day-progress">
-                  <div
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        Math.max(
-                          0,
-                          Number(
-                            summary.capacity_utilization
-                          ) || 0
-                        )
-                      )}%`,
-                    }}
-                  />
-                </div>
-
-                <p>
-                  This event currently has one day of
-                  recorded registration activity.
-                </p>
-
-              </div>
-            )}
-
-
-            {/* ============================================
-                MULTI-DAY REGISTRATION GROWTH
-            ============================================ */}
-
-            {growth.length > 1 && (
-              <>
-
-                <div className="analytics-growth-chart-heading">
-
-                  <div>
-                    <h3>Registration activity</h3>
-
-                    <p>
-                      Daily registrations and cumulative
-                      active registrations.
-                    </p>
-                  </div>
-
-                  <div className="analytics-growth-legend">
-                    <span className="analytics-legend-daily">
-                      Daily
-                    </span>
-
-                    <span className="analytics-legend-total">
-                      Cumulative
-                    </span>
-                  </div>
-
-                </div>
-
-
-                <div
-                  className="analytics-chart-scroll"
-                  role="region"
-                  aria-label="Event registration growth chart"
-                  tabIndex={0}
-                >
-
-                  <div
-                    className="analytics-growth-chart"
-                    style={{
-                      gridTemplateColumns:
-                        `repeat(${growth.length}, ` +
-                        `minmax(44px, 1fr))`,
-
-                      minWidth: `${Math.max(
-                        620,
-                        growth.length * 56
-                      )}px`,
-                    }}
-                  >
-
-                    {growth.map((day) => {
-
-                      const daily =
-                        Number(
-                          day.daily_registrations
-                        ) || 0;
-
-                      const cumulative =
-                        Number(
-                          day.cumulative_registrations
-                        ) || 0;
-
-                      const dailyHeight =
-                        (daily /
-                          maximumRegistrations) *
-                        100;
-
-                      const cumulativeHeight =
-                        (cumulative /
-                          maximumRegistrations) *
-                        100;
-
-                      return (
-                        <div
-                          className="analytics-growth-column"
-                          key={day.date}
-                        >
-
-                          <span className="analytics-growth-count">
-                            {cumulative}
-                          </span>
-
-
-                          <div className="analytics-growth-bar-area">
-
-                            <div
-                              className="analytics-growth-bar-total"
-                              style={{
-                                height:
-                                  `${cumulativeHeight}%`,
-                              }}
-                              title={
-                                `${formatChartDate(day.date)}: ` +
-                                `${cumulative} cumulative`
-                              }
-                            />
-
-
-                            <div
-                              className="analytics-growth-bar-daily"
-                              style={{
-                                height:
-                                  `${dailyHeight}%`,
-                              }}
-                              title={
-                                `${formatChartDate(day.date)}: ` +
-                                `${daily} daily`
-                              }
-                            />
-
-                          </div>
-
-
-                          <span className="analytics-growth-date">
-                            {formatChartDate(day.date)}
-                          </span>
-
-                        </div>
-                      );
-                    })}
-
-                  </div>
-
-                </div>
-
-              </>
-            )}
-
-
-            {/* ============================================
-                NO RECORDED ACTIVITY
-            ============================================ */}
-
-            {growth.length === 0 && (
-              <div className="analytics-growth-message">
-                <h3>No registration history available.</h3>
-
-                <p>
-                  Registration activity will appear
-                  once students register for this event.
-                </p>
-              </div>
-            )}
-
-
-            {/* ============================================
-                HISTORICAL DATA EXPLANATION
-            ============================================ */}
-
-            <p className="analytics-growth-note">
-
-              {isLegacyEvent
-                ? "This event was published before publication timestamps were introduced. The chart begins with the earliest recorded active registration."
+            <RegistrationChart growth={growth} />
+
+            <p className="ap-chart-note">
+              Current active registrations grouped
+              by their latest registration date;
+              not a complete history of cancellations
+              or previous seat occupancy.{" "}
+
+              {legacy
+                ? "Legacy event: the chart starts at the first recorded active registration."
                 : period.published_at
-                ? "The chart begins on the event's recorded publication date."
-                : "An exact publication date is not available for this event."}
-
-              {" "}The values represent currently active
-              registrations grouped by their latest
-              registration date. They are not a complete
-              historical record of cancellations or
-              previous seat occupancy.
-
+                  ? "The chart starts on the recorded publication date."
+                  : "An exact publication date is unavailable."}
             </p>
-
           </>
         )}
+      </section>
 
-      </div>
+      <aside
+        className="ap-panel ap-snapshot"
+        aria-busy={loading}
+      >
+        <h2>Event snapshot</h2>
 
-    </section>
+        {loading ? (
+          <p className="ap-muted" role="status">
+            Loading selected event…
+          </p>
+        ) : data ? (
+          <>
+            <h3>
+              {event.title ||
+                events.find(
+                  (item) =>
+                    String(item.id) === eventId
+                )?.title}
+            </h3>
+
+            <dl>
+              <div>
+                <dt>Registration deadline</dt>
+                <dd>
+                  {dateLabel(
+                    period.registration_deadline
+                  )}
+                </dd>
+              </div>
+
+              <div>
+                <dt>
+                  {legacy
+                    ? "First active registration"
+                    : "Registration start"}
+                </dt>
+
+                <dd>
+                  {dateLabel(
+                    period.published_at ||
+                    period.chart_start
+                  )}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Capacity</dt>
+                <dd>{display(event.capacity)}</dd>
+              </div>
+
+              <div>
+                <dt>Active registrations</dt>
+                <dd>
+                  {display(summary.registered)}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Available seats</dt>
+                <dd>
+                  {display(summary.available_seats)}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Occupancy</dt>
+                <dd>
+                  {percentage(
+                    summary.capacity_utilization
+                  )}
+                </dd>
+              </div>
+            </dl>
+
+            {number(
+              summary.capacity_utilization
+            ) !== null && (
+              <progress
+                value={Math.min(
+                  100,
+                  number(
+                    summary.capacity_utilization
+                  )
+                )}
+                max="100"
+                aria-label="Selected event capacity utilisation"
+              />
+            )}
+          </>
+        ) : (
+          <p className="ap-muted">
+            The selected event’s snapshot
+            is unavailable.
+          </p>
+        )}
+      </aside>
+    </div>
   );
 }
 
-
-// ============================================================
-// MAIN ORGANIZER ANALYTICS PAGE
-// ============================================================
-
 export default function OrganizerAnalytics() {
-  const [data, setData] = useState(null);
+  const [revision, setRevision] = useState(0);
 
-  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState({
+    revision: -1,
+    data: null,
+    error: "",
+  });
 
-  const [error, setError] = useState("");
-
-
-  // ==========================================================
-  // LOAD ORGANIZER OVERVIEW ANALYTICS
-  // ==========================================================
+  const loading =
+    result.revision !== revision;
 
   useEffect(() => {
     let active = true;
 
-    async function loadAnalytics() {
-      setLoading(true);
-      setError("");
-
-      try {
-        const response = await getOrganizerAnalytics();
+    getOrganizerAnalytics()
+      .then((data) => {
+        if (
+          !data?.summary ||
+          !Array.isArray(data.events) ||
+          !Array.isArray(data.categories)
+        ) {
+          throw new Error(
+            "The server returned incomplete analytics."
+          );
+        }
 
         if (active) {
-          setData(response);
+          setResult({
+            revision,
+            data,
+            error: "",
+          });
         }
-      } catch (err) {
+      })
+      .catch((error) => {
         if (active) {
-          setError(getErrorMessage(err));
+          setResult({
+            revision,
+            data: null,
+            error: messageFrom(error),
+          });
         }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadAnalytics();
+      });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [revision]);
 
+  const data = result.data;
+  const summary = data?.summary || {};
+  const events = data?.events || [];
+  const categories = data?.categories || [];
 
-  // ==========================================================
-  // LOADING
-  // ==========================================================
-
-  if (loading) {
-    return (
-      <div
-        className="organizer-loading"
-        role="status"
-      >
-        Loading analytics...
-      </div>
-    );
-  }
-
-
-  // ==========================================================
-  // ERROR
-  // ==========================================================
-
-  if (error) {
-    return (
-      <div
-        className="organizer-error"
-        role="alert"
-      >
-        <h3>Unable to load analytics.</h3>
-
-        <p>{error}</p>
-
-        <Link to="/organizer">
-          ← Return to Dashboard
-        </Link>
-      </div>
-    );
-  }
-
-
-  if (!data) {
-    return null;
-  }
-
-
-  // ==========================================================
-  // PREPARE ANALYTICS
-  // ==========================================================
-
-  const summary = data.summary || {};
-
-  const events = Array.isArray(data.events)
-    ? data.events
-    : [];
-
-  const categories = Array.isArray(data.categories)
-    ? data.categories
-    : [];
-
-
-  // ==========================================================
-  // RENDER
-  // ==========================================================
+  const categoryTotal = categories.reduce(
+    (total, item) =>
+      total + (number(item.events) || 0),
+    0
+  );
 
   return (
-    <div className="organizer-analytics-page">
-
-      {/* Back */}
-
+    <div className="ap-page">
       <Link
+        className="ap-back"
         to="/organizer"
-        className="organizer-back-link"
       >
         ← Back to Dashboard
       </Link>
 
+      <header className="ap-heading">
+        <h1>
+          Know your <span>impact.</span>
+        </h1>
 
-      {/* Heading */}
+        <p>
+          Registrations, attendance and capacity
+          across your events.
+        </p>
+      </header>
 
-      <div className="organizer-page-heading">
-        <div>
-          <span className="organizer-eyebrow">
-            EVENT PERFORMANCE
-          </span>
-
-          <h1>
-            Know your
-            <br />
-            <span>impact.</span>
-          </h1>
-
-          <p>
-            Understand registrations, attendance,
-            and engagement across your events.
-          </p>
+      {loading ? (
+        <div
+          className="ap-panel ap-empty"
+          role="status"
+        >
+          Loading analytics…
         </div>
-      </div>
+      ) : result.error ? (
+        <div
+          className="ap-panel ap-empty"
+          role="alert"
+        >
+          <h2>Unable to load analytics.</h2>
 
+          <p>{result.error}</p>
 
-      {/* ====================================================
-          SUMMARY CARDS
-      ==================================================== */}
-
-      <section className="analytics-summary-grid">
-
-        <article className="analytics-summary-card">
-          <span>TOTAL EVENTS</span>
-
-          <strong>
-            {summary.total_events ?? 0}
-          </strong>
-
-          <p>Events you've created</p>
-        </article>
-
-
-        <article className="analytics-summary-card analytics-blue">
-          <span>REGISTRATIONS</span>
-
-          <strong>
-            {summary.total_registrations ?? 0}
-          </strong>
-
-          <p>Active registrations</p>
-        </article>
-
-
-        <article className="analytics-summary-card analytics-lime">
-          <span>CHECKED IN</span>
-
-          <strong>
-            {summary.total_checked_in ?? 0}
-          </strong>
-
-          <p>Verified attendees</p>
-        </article>
-
-
-        <article className="analytics-summary-card">
-          <span>ATTENDANCE RATE</span>
-
-          <strong>
-            {formatPercentage(
-              summary.attendance_rate
-            )}
-          </strong>
-
-          <p>Of active registrations</p>
-        </article>
-
-      </section>
-
-
-      {/* ====================================================
-          SECONDARY ANALYTICS
-      ==================================================== */}
-
-      <div className="analytics-secondary-grid">
-
-        <article className="analytics-metric-panel">
-          <span>CAPACITY UTILIZATION</span>
-
-          <strong>
-            {formatPercentage(
-              summary.capacity_utilization
-            )}
-          </strong>
-
-          <div
-            className="analytics-progress-track"
-            role="progressbar"
-            aria-label="Capacity utilization"
-            aria-valuenow={
-              Number(
-                summary.capacity_utilization
-              ) || 0
+          <button
+            className="ap-button"
+            onClick={() =>
+              setRevision((value) => value + 1)
             }
-            aria-valuemin={0}
-            aria-valuemax={100}
           >
-            <div
-              className="analytics-progress-fill"
-              style={{
-                width: `${Math.min(
-                  100,
-                  Math.max(
-                    0,
-                    Number(
-                      summary.capacity_utilization
-                    ) || 0
-                  )
-                )}%`,
-              }}
-            />
-          </div>
-
-          <p>
-            Percentage of available event seats
-            currently reserved.
-          </p>
-        </article>
-
-
-        <article className="analytics-metric-panel">
-          <span>EVENT STATUS</span>
-
-          <div className="analytics-status-list">
-
-            <div>
-              <span>Published</span>
-              <strong>
-                {summary.published_events ?? 0}
-              </strong>
-            </div>
-
-            <div>
-              <span>Draft</span>
-              <strong>
-                {summary.draft_events ?? 0}
-              </strong>
-            </div>
-
-            <div>
-              <span>Cancelled</span>
-              <strong>
-                {summary.cancelled_events ?? 0}
-              </strong>
-            </div>
-
-          </div>
-        </article>
-
-      </div>
-
-
-      {/* ====================================================
-          NEW EVENT-SPECIFIC REGISTRATION GROWTH
-      ==================================================== */}
-
-      <RegistrationGrowth events={events} />
-
-
-      {/* ====================================================
-          EVENT PERFORMANCE
-      ==================================================== */}
-
-      <section className="analytics-events-section">
-
-        <div className="organizer-section-heading">
-
-          <div>
-            <span className="organizer-eyebrow">
-              EVENT ANALYTICS
-            </span>
-
-            <h2>Event Performance</h2>
-          </div>
-
-          <span className="organizer-event-count">
-            {events.length}{" "}
-            {events.length === 1 ? "event" : "events"}
-          </span>
-
+            Try again
+          </button>
         </div>
-
-
-        {events.length === 0 ? (
-
-          <div className="organizer-empty-state">
-            <h3>No events to analyze yet.</h3>
-
-            <p>
-              Create and publish an event to start
-              collecting analytics.
-            </p>
-
-            <Link
-              to="/organizer/events/new"
-              className="organizer-primary-button"
-            >
-              Create Event →
-            </Link>
-          </div>
-
-        ) : (
-
-          <>
-
-            {/* Desktop Table */}
-
-            <div className="organizer-table-wrapper analytics-desktop-table">
-
-              <table className="organizer-events-table">
-
-                <thead>
-                  <tr>
-                    <th>EVENT</th>
-                    <th>DATE</th>
-                    <th>REGISTERED</th>
-                    <th>CHECKED IN</th>
-                    <th>ATTENDANCE</th>
-                    <th>UTILIZATION</th>
-                  </tr>
-                </thead>
-
-
-                <tbody>
-
-                  {events.map((event) => (
-
-                    <tr key={event.id}>
-
-                      <td>
-                        <strong>
-                          {event.title}
-                        </strong>
-                      </td>
-
-                      <td>
-                        {formatDate(
-                          event.start_datetime
-                        )}
-                      </td>
-
-                      <td>
-                        {event.registered}
-                        {" / "}
-                        {event.capacity}
-                      </td>
-
-                      <td>
-                        {event.checked_in}
-                      </td>
-
-                      <td>
-                        {formatPercentage(
-                          event.attendance_rate
-                        )}
-                      </td>
-
-                      <td>
-                        {formatPercentage(
-                          event.capacity_utilization
-                        )}
-                      </td>
-
-                    </tr>
-
-                  ))}
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-
-            {/* Mobile Cards */}
-
-            <div className="analytics-mobile-events">
-
-              {events.map((event) => (
-
+      ) : (
+        <>
+          <section
+            className="ap-kpis"
+            aria-label="Overall event metrics"
+          >
+            {[
+              [
+                "Total events",
+                display(summary.total_events),
+                "",
+              ],
+              [
+                "Active registrations",
+                display(
+                  summary.total_registrations
+                ),
+                "blue",
+              ],
+              [
+                "Checked in",
+                display(summary.total_checked_in),
+                "lime",
+              ],
+              [
+                "Attendance rate",
+                percentage(
+                  summary.attendance_rate
+                ),
+                "",
+              ],
+            ].map(
+              ([label, value, accent], index) => (
                 <article
-                  className="analytics-mobile-event-card"
-                  key={event.id}
+                  className={`ap-kpi ${
+                    accent
+                      ? `ap-kpi--${accent}`
+                      : ""
+                  }`}
+                  key={label}
+                  style={{
+                    "--ap-index": index,
+                  }}
                 >
-
-                  <span className="organizer-eyebrow">
-                    {event.category}
-                  </span>
-
-                  <h3>
-                    {event.title}
-                  </h3>
-
-                  <p>
-                    {formatDate(
-                      event.start_datetime
-                    )}
-                  </p>
-
-
-                  <div className="analytics-mobile-event-metrics">
-
-                    <div>
-                      <span>REGISTERED</span>
-
-                      <strong>
-                        {event.registered}
-                        {" / "}
-                        {event.capacity}
-                      </strong>
-                    </div>
-
-
-                    <div>
-                      <span>CHECKED IN</span>
-
-                      <strong>
-                        {event.checked_in}
-                      </strong>
-                    </div>
-
-
-                    <div>
-                      <span>ATTENDANCE</span>
-
-                      <strong>
-                        {formatPercentage(
-                          event.attendance_rate
-                        )}
-                      </strong>
-                    </div>
-
-
-                    <div>
-                      <span>UTILIZATION</span>
-
-                      <strong>
-                        {formatPercentage(
-                          event.capacity_utilization
-                        )}
-                      </strong>
-                    </div>
-
-                  </div>
-
+                  <span>{label}</span>
+                  <strong>{value}</strong>
                 </article>
+              )
+            )}
+          </section>
 
-              ))}
+          <RegistrationActivity events={events} />
 
+          <section className="ap-panel ap-performance">
+            <div className="ap-section-heading">
+              <h2>Event performance</h2>
+
+              <span>
+                {events.length}{" "}
+                {events.length === 1
+                  ? "event"
+                  : "events"}
+              </span>
             </div>
 
-          </>
-
-        )}
-
-      </section>
-
-
-      {/* ====================================================
-          CATEGORIES
-      ==================================================== */}
-
-      <section className="analytics-categories-section">
-
-        <div className="organizer-section-heading">
-
-          <div>
-            <span className="organizer-eyebrow">
-              EVENT DISTRIBUTION
-            </span>
-
-            <h2>Categories</h2>
-          </div>
-
-        </div>
-
-
-        {categories.length === 0 ? (
-
-          <div className="organizer-empty-state">
-
-            <h3>No categories available.</h3>
-
-            <p>
-              Category statistics will appear
-              after creating an event.
-            </p>
-
-          </div>
-
-        ) : (
-
-          <div className="analytics-category-grid">
-
-            {categories.map((category) => (
-
-              <article
-                className="analytics-category-card"
-                key={category.category}
+            {!events.length ? (
+              <p className="ap-muted">
+                Event performance will appear
+                here after you create an event.
+              </p>
+            ) : (
+              <div
+                className="ap-table-scroll"
+                tabIndex={0}
+                role="region"
+                aria-label="Event performance table"
               >
+                <table>
+                  <caption className="ap-sr-only">
+                    Registrations, attendance and
+                    utilisation for each event
+                  </caption>
 
+                  <thead>
+                    <tr>
+                      {[
+                        "Event",
+                        "Date",
+                        "Registered",
+                        "Checked in",
+                        "Attendance",
+                        "Utilisation",
+                      ].map((label) => (
+                        <th
+                          scope="col"
+                          key={label}
+                        >
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {events.map((event) => (
+                      <tr key={event.id}>
+                        <th scope="row">
+                          {event.title}
+                        </th>
+
+                        <td>
+                          {dateLabel(
+                            event.start_datetime
+                          )}
+                        </td>
+
+                        <td>
+                          {display(event.registered)}
+                          {" / "}
+                          {display(event.capacity)}
+                        </td>
+
+                        <td>
+                          {display(event.checked_in)}
+                        </td>
+
+                        <td>
+                          {percentage(
+                            event.attendance_rate
+                          )}
+                        </td>
+
+                        <td>
+                          {percentage(
+                            event.capacity_utilization
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <div className="ap-bottom-grid">
+            <section className="ap-panel ap-status">
+              <h2>Event status</h2>
+
+              <dl>
+                {[
+                  [
+                    "Published",
+                    summary.published_events,
+                  ],
+                  [
+                    "Draft",
+                    summary.draft_events,
+                  ],
+                  [
+                    "Cancelled",
+                    summary.cancelled_events,
+                  ],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{display(value)}</dd>
+                  </div>
+                ))}
+              </dl>
+
+              <div className="ap-overall-capacity">
                 <span>
-                  {category.category.toUpperCase()}
+                  Overall capacity utilisation
                 </span>
 
                 <strong>
-                  {category.events}
+                  {percentage(
+                    summary.capacity_utilization
+                  )}
                 </strong>
+              </div>
+            </section>
 
-                <p>
-                  {category.events === 1
-                    ? "Event created"
-                    : "Events created"}
+            <section className="ap-panel ap-categories">
+              <h2>Categories</h2>
+
+              <p>Events created by category.</p>
+
+              {categories.length ? (
+                <ul>
+                  {categories.map((item) => (
+                    <li key={item.category}>
+                      <span>
+                        {getCategoryLabel(
+                          item.category
+                        )}
+                      </span>
+
+                      <div
+                        className="ap-category-track"
+                        aria-hidden="true"
+                      >
+                        <div
+                          style={{
+                            width: `${
+                              categoryTotal
+                                ? (
+                                    (number(item.events) || 0) /
+                                    categoryTotal
+                                  ) * 100
+                                : 0
+                            }%`,
+                          }}
+                        />
+                      </div>
+
+                      <strong>
+                        {display(item.events)}
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="ap-muted">
+                  No category data yet.
                 </p>
-
-              </article>
-
-            ))}
-
+              )}
+            </section>
           </div>
+        </>
+      )}
 
-        )}
-
-      </section>
-
+      <footer className="ap-footer">
+        Show up. Stand out.
+      </footer>
     </div>
   );
 }

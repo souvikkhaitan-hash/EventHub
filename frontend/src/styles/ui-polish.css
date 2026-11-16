@@ -1,0 +1,294 @@
+/* Shared finishing styles, loaded after existing page styles. */
+
+:root {
+  --org-mobile-header-height: 76px;
+}
+
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--color-primary, #3659f5);
+  outline-offset: 3px;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+:where(h1, h2, h3) {
+  overflow-wrap: anywhere;
+}
+
+.organizer-content,
+.organizer-main,
+.cert-editor-workspace {
+  min-width: 0;
+}
+
+.organizer-main {
+  width: 100%;
+  padding: clamp(24px, 3vw, 44px);
+}
+
+/* More compact headings for management pages. */
+
+.org-teams-header h1,
+.org-participants-hero h1,
+.organizer-attendance-page .organizer-page-heading h1,
+.organizer-analytics-page .organizer-page-heading h1 {
+  font-size: clamp(32px, 3.6vw, 54px);
+  line-height: 1.1;
+  letter-spacing: -1.6px;
+  margin: 14px 0;
+}
+
+.org-teams-header,
+.org-participants-hero {
+  margin: 24px 0 32px;
+}
+
+.org-section-title {
+  margin: 42px 0 24px;
+}
+
+.org-capacity-panel {
+  margin-bottom: 40px;
+}
+
+.organizer-profile,
+.organizer-profile > div {
+  min-width: 0;
+}
+
+.organizer-profile strong {
+  display: block;
+  max-width: min(36vw, 220px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Keep desktop navigation visible on long pages. */
+
+@media (min-width: 901px) {
+  .organizer-v2-layout .organizer-sidebar {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100dvh;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Certificate toolbar, canvas and controls share one boundary. */
+
+.cert-editor-workspace {
+  display: grid;
+  gap: 20px;
+
+  --cert-toolbar-height: 96px;
+  --cert-workspace-top: 8px;
+}
+
+.cert-editor-workspace > .cert-toolbar {
+  top: var(--cert-workspace-top);
+  background: #fff;
+}
+
+.cert-editor-workspace .cert-canvas-panel,
+.cert-editor-workspace .cert-inspector {
+  top: calc(
+    var(--cert-workspace-top) +
+    var(--cert-toolbar-height) +
+    16px
+  );
+}
+
+.cert-editor-workspace .cert-inspector {
+  max-height: max(
+    160px,
+    calc(
+      100dvh -
+      var(--cert-workspace-top) -
+      var(--cert-toolbar-height) -
+      32px
+    )
+  );
+}
+
+.cert-editor-workspace .cert-paper {
+  --cert-preview-height: max(
+    120px,
+    calc(
+      100dvh -
+      var(--cert-workspace-top) -
+      var(--cert-toolbar-height) -
+      180px
+    )
+  );
+
+  width: min(
+    100%,
+    calc(
+      var(--cert-preview-height) *
+      var(--page-ratio, 1.414)
+    )
+  );
+}
+
+/* Wide records scroll inside their own table container. */
+
+.cert-recipient-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.cert-page .cert-section-heading,
+.cert-preview-actions {
+  flex-wrap: wrap;
+}
+
+.cert-page .cert-message {
+  overflow-wrap: anywhere;
+}
+
+.cert-page .cert-pdf {
+  width: 100%;
+  max-width: 100%;
+}
+
+.cert-delivery-tabs button {
+  white-space: normal;
+  text-align: center;
+}
+
+.cert-page .cert-review-confirmation {
+  align-items: flex-start;
+}
+
+/* Account for the organiser's sticky mobile header. */
+
+@media (max-width: 900px) {
+  .cert-editor-workspace {
+    --cert-workspace-top: calc(
+      var(--org-mobile-header-height) + 8px
+    );
+  }
+}
+
+/* Keep the complete mobile navigation reachable. */
+
+@media (max-width: 850px) {
+  .site-header .nav-panel {
+    max-height: calc(100dvh - 110px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .site-header .nav-links a,
+  .site-header .nav-actions a,
+  .site-header .nav-actions button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 800px) {
+  .cert-editor-workspace > .cert-toolbar {
+    position: static;
+  }
+
+  .cert-editor-workspace .cert-canvas-panel {
+    top: var(--cert-workspace-top);
+  }
+
+  .cert-editor-workspace .cert-inspector {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .cert-editor-workspace .cert-paper {
+    width: min(
+      100%,
+      calc(30dvh * var(--page-ratio, 1.414))
+    );
+  }
+}
+
+@media (max-width: 600px) {
+  .cert-card {
+    padding: 18px;
+  }
+
+  .cert-page h2 {
+    font-size: 21px;
+  }
+
+  .cert-delivery-tabs {
+    gap: 8px;
+  }
+
+  .cert-delivery-tabs button {
+    flex: 1 1 150px;
+    padding: 12px;
+  }
+
+  .cert-page .cert-preview-actions > label,
+  .cert-toolbar > label {
+    flex-basis: 100%;
+  }
+
+  :where(
+    input:not([type]),
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="number"],
+    input[type="datetime-local"],
+    textarea,
+    select
+  ) {
+    font-size: 16px;
+  }
+
+  .cert-page input:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="file"]),
+  .cert-page textarea,
+  .cert-page select,
+  .auth-v2 .auth-v2-input-wrap input,
+  .event-editor-form .event-field input,
+  .event-editor-form .event-field textarea,
+  .event-editor-form .event-field select {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --org-mobile-header-height: 70px;
+  }
+}
+
+/* Short landscape screens need normal document scrolling. */
+
+@media (max-width: 800px) and (max-height: 520px) {
+  .cert-editor-workspace .cert-canvas-panel {
+    position: static;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

@@ -18,6 +18,7 @@ from .models import (
     Registration,
     TeamMembership,
     EventTicket,
+    TeamMembershipHistory,
 )
 
 from .permissions import IsOrganizer, IsStudent
@@ -97,6 +98,21 @@ class TeamSerializer(serializers.ModelSerializer):
 
     def get_member_count(self, obj):
         return obj.memberships.count()
+
+class OrganizerTeamSerializer(TeamSerializer):
+    """
+    Organizer roster information does not need invitation codes.
+
+    Student endpoints continue using TeamSerializer so existing
+    team invitation sharing keeps working.
+    """
+
+    class Meta(TeamSerializer.Meta):
+        fields = [
+            field
+            for field in TeamSerializer.Meta.fields
+            if field != "invitation_code"
+        ]
 
 
 # ============================================================
@@ -229,6 +245,24 @@ def cancel_team_registration(registration):
         token=uuid.uuid4(),
         checked_in_at=None,
         checked_in_by=None,
+    )
+def archive_team_membership(membership, *, reason, actor):
+    """
+    Save a departing membership before removing it.
+
+    Call inside the existing transaction.atomic() block.
+    If any later operation fails, the history record and
+    membership changes roll back together.
+    """
+    return TeamMembershipHistory.objects.create(
+        source_membership_id=membership.pk,
+        team_id=membership.team_id,
+        registration_id=membership.registration_id,
+        role=membership.role,
+        joined_at=membership.joined_at,
+        ended_at=timezone.now(),
+        reason=reason,
+        performed_by=actor,
     )
 
 
@@ -803,6 +837,12 @@ class LeaveTeamView(APIView):
                     status=status.HTTP_409_CONFLICT,
                 )
 
+            archive_team_membership(
+                membership,
+                reason="left",
+                actor=request.user,
+            )
+
             membership.delete()
 
             cancel_team_registration(registration)
@@ -912,13 +952,17 @@ class WithdrawTeamView(APIView):
             # Remove memberships and cancel registrations.
 
             for membership in memberships:
-
                 registration = membership.registration
+
+                archive_team_membership(
+                    membership,
+                    reason="withdrawn",
+                    actor=request.user,
+                )
 
                 membership.delete()
 
                 cancel_team_registration(registration)
-
             team.status = "withdrawn"
 
             team.save(
@@ -968,7 +1012,7 @@ class OrganizerEventTeamsView(APIView):
                 "max_teams": event.max_teams,
                 "capacity": event.capacity,
             },
-            "teams": TeamSerializer(
+            "teams": OrganizerTeamSerializer(
                 teams,
                 many=True,
             ).data,

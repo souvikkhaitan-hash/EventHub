@@ -1,6 +1,6 @@
 from django.utils import timezone
 from rest_framework import serializers
-
+from django.db.models import Count, Q
 from .models import Event, Registration,EventTicket
 
 
@@ -122,7 +122,74 @@ class EventSerializer(serializers.ModelSerializer):
                     "Total participant capacity must be "
                     "at least as large as the maximum team size."
                 )
+                # Protect existing teams when changing registration limits.
+        #
+        # OrganizerEventDetailView already holds the event row lock
+        # while validating and saving an update. Team creation and
+        # joining use the same lock, preventing competing changes.
+        if instance and registration_mode == "team":
+            active_teams = instance.teams.exclude(
+                status="withdrawn"
+            )
 
+            changing_max_teams = (
+                "max_teams" in attrs
+                and max_teams != instance.max_teams
+            )
+
+            changing_max_size = (
+                "max_team_size" in attrs
+                and max_team_size != instance.max_team_size
+            )
+
+            changing_min_size = (
+                "min_team_size" in attrs
+                and min_team_size != instance.min_team_size
+            )
+
+            if changing_max_teams:
+                existing_team_count = active_teams.count()
+
+                if max_teams < existing_team_count:
+                    errors["max_teams"] = (
+                        "Maximum teams cannot be less than "
+                        f"the {existing_team_count} existing active teams."
+                    )
+
+            if changing_max_size or changing_min_size:
+                team_sizes = active_teams.annotate(
+                    active_member_count=Count(
+                        "memberships",
+                        filter=Q(
+                            memberships__registration__status="registered"
+                        ),
+                    )
+                )
+
+                if changing_max_size:
+                    oversized_team_exists = team_sizes.filter(
+                        active_member_count__gt=max_team_size
+                    ).exists()
+
+                    if oversized_team_exists:
+                        errors["max_team_size"] = (
+                            "Maximum team size cannot be smaller "
+                            "than an existing active team's roster."
+                        )
+
+                if changing_min_size:
+                    undersized_confirmed_team_exists = (
+                        team_sizes.filter(
+                            status="confirmed",
+                            active_member_count__lt=min_team_size,
+                        ).exists()
+                    )
+
+                    if undersized_confirmed_team_exists:
+                        errors["min_team_size"] = (
+                            "Minimum team size cannot exceed "
+                            "an existing confirmed team's roster."
+                        )
         # Do not allow the registration type to change after publication.
         if instance and "registration_mode" in attrs:
             if (

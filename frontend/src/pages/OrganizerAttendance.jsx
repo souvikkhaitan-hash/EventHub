@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useParams } from "react-router";
-
 import {
   Html5QrcodeScanner,
   Html5QrcodeSupportedFormats,
@@ -11,12 +17,24 @@ import {
   checkInStudent,
 } from "../services/events";
 
-import "../styles/organizer.css";
-import "../styles/attendance.css";
-import "../styles/attendance-v2.css";
+import "../styles/attendance-editorial.css";
 
-function formatDateTime(value) {
-  if (!value) return "—";
+// Release the previous camera before opening another scanner.
+let cameraRelease = Promise.resolve();
+
+function message(error) {
+  return (
+    error?.details?.message ||
+    error?.details?.detail ||
+    error?.message ||
+    "Please try again."
+  );
+}
+
+function dateTime(value) {
+  if (!value || Number.isNaN(new Date(value).getTime())) {
+    return "—";
+  }
 
   return new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
@@ -28,669 +46,647 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
-
-function getErrorMessage(error) {
-  return (
-    error.details?.message ||
-    error.details?.detail ||
-    error.message ||
-    "Something went wrong. Please try again."
-  );
-}
-
-
-export default function OrganizerAttendance() {
-  const { id } = useParams();
-
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const [token, setToken] = useState("");
-  const [scanningEnabled, setScanningEnabled] = useState(false);
-  const [checkingIn, setCheckingIn] = useState(false);
-
-  const [checkInResult, setCheckInResult] = useState(null);
-  const [checkInError, setCheckInError] = useState("");
-
-  const [filter, setFilter] = useState("all");
-
-  const scannerRef = useRef(null);
-  const scanCapturedRef = useRef(false);
-  const submittingRef = useRef(false);
-
-
-  // ==========================================================
-  // LOAD ATTENDANCE INFORMATION
-  // ==========================================================
-
-  const loadAttendance = useCallback(async () => {
-    const response = await getOrganizerAttendance(id);
-
-    setData(response);
-
-    return response;
-  }, [id]);
-
+function Camera({ onCapture, onError }) {
+  const uniqueId = useId();
+  const readerId = `attendance-reader-${uniqueId.replace(
+    /[^a-zA-Z0-9_-]/g,
+    ""
+  )}`;
 
   useEffect(() => {
-    let active = true;
+    let disposed = false;
+    let captured = false;
+    let scanner;
 
-    async function initializeAttendance() {
-      setLoading(true);
-      setError("");
+    async function start() {
+      await cameraRelease;
+
+      if (disposed) return;
 
       try {
-        const response = await getOrganizerAttendance(id);
+        scanner = new Html5QrcodeScanner(
+          readerId,
+          {
+            fps: 10,
+            qrbox: {
+              width: 220,
+              height: 220,
+            },
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.QR_CODE,
+            ],
+            rememberLastUsedCamera: false,
+            showTorchButtonIfSupported: true,
+          },
+          false
+        );
 
-        if (active) {
-          setData(response);
-        }
-      } catch (err) {
-        if (active) {
-          setError(getErrorMessage(err));
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
+        scanner.render(
+          (text) => {
+            if (disposed || captured || !text.trim()) {
+              return;
+            }
+
+            captured = true;
+            onCapture(text.trim());
+          },
+          () => {
+            // Frames without a readable QR are normal.
+          }
+        );
+      } catch (error) {
+        if (!disposed) {
+          onError(message(error));
         }
       }
     }
 
-    initializeAttendance();
-
-    return () => {
-      active = false;
-    };
-  }, [id]);
-
-
-  // ==========================================================
-  // CAMERA QR SCANNER
-  // ==========================================================
-
-  useEffect(() => {
-    if (!scanningEnabled || !data) {
-      return;
-    }
-
-    let disposed = false;
-
-    scanCapturedRef.current = false;
-
-    const scanner = new Html5QrcodeScanner(
-      "eventhub-qr-reader",
-      {
-        fps: 10,
-        qrbox: {
-          width: 220,
-          height: 220,
-        },
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.QR_CODE,
-        ],
-        rememberLastUsedCamera: false,
-        showTorchButtonIfSupported: true,
-      },
-      false
-    );
-
-    scannerRef.current = scanner;
-
-    scanner.render(
-      (decodedText) => {
-        if (disposed || scanCapturedRef.current) {
-          return;
-        }
-
-        scanCapturedRef.current = true;
-
-        // The scanner only reads the QR.
-        // The organizer confirms before submitting attendance.
-        setToken(decodedText.trim());
-
-        setCheckInResult(null);
-        setCheckInError("");
-
-        setScanningEnabled(false);
-      },
-      () => {
-        // Individual frames often fail to contain a QR code.
-        // This is normal and should not show an error.
-      }
-    );
+    start();
 
     return () => {
       disposed = true;
 
-      scannerRef.current = null;
-
-      // Stop and release the camera when closing the scanner
-      // or leaving this page.
-      Promise.resolve(scanner.clear()).catch(() => {});
+      if (scanner) {
+        cameraRelease = cameraRelease
+          .then(() => scanner.clear())
+          .catch(() => {});
+      }
     };
-  }, [scanningEnabled, data]);
+  }, [readerId, onCapture, onError]);
 
+  return <div id={readerId} className="at-reader" />;
+}
 
-  // ==========================================================
-  // SUBMIT ATTENDANCE
-  // ==========================================================
+export default function OrganizerAttendance() {
+  const { id } = useParams();
 
-  async function handleCheckIn(event) {
+  return <AttendanceWorkspace key={id} id={id} />;
+}
+
+function AttendanceWorkspace({ id }) {
+  const [data, setData] = useState(null);
+  const [refreshing, setRefreshing] = useState(true);
+  const [error, setError] = useState("");
+
+  const [token, setToken] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState(null);
+  const [checkError, setCheckError] = useState("");
+
+  const [filter, setFilter] = useState("all");
+
+  const active = useRef(false);
+  const request = useRef(0);
+  const submitting = useRef(false);
+  const tokenInput = useRef(null);
+
+  const refresh = useCallback(async () => {
+    const current = ++request.current;
+
+    setRefreshing(true);
+    setError("");
+
+    try {
+      const response = await getOrganizerAttendance(id);
+
+      if (
+        !response?.event ||
+        !response?.statistics ||
+        !Array.isArray(response.attendance)
+      ) {
+        throw new Error(
+          "Attendance information could not be loaded."
+        );
+      }
+
+      if (
+        active.current &&
+        current === request.current
+      ) {
+        setData(response);
+      }
+    } catch (err) {
+      if (
+        active.current &&
+        current === request.current
+      ) {
+        setError(message(err));
+      }
+    } finally {
+      if (
+        active.current &&
+        current === request.current
+      ) {
+        setRefreshing(false);
+      }
+    }
+  }, [id]);
+
+  useEffect(() => {
+    active.current = true;
+    refresh();
+
+    return () => {
+      active.current = false;
+      request.current += 1;
+    };
+  }, [refresh]);
+
+  const capture = useCallback((value) => {
+    setToken(value);
+    setResult(null);
+    setCheckError("");
+    setScanning(false);
+
+    tokenInput.current?.focus();
+  }, []);
+
+  const failCamera = useCallback((value) => {
+    setCameraError(value);
+    setScanning(false);
+  }, []);
+
+  async function submit(event) {
     event.preventDefault();
 
-    const cleanedToken = token.trim();
+    const value = token.trim();
 
-    if (!cleanedToken || submittingRef.current) {
+    if (
+      !value ||
+      submitting.current ||
+      scanning ||
+      refreshing
+    ) {
       return;
     }
 
-    submittingRef.current = true;
-
-    setCheckingIn(true);
-    setCheckInError("");
-    setCheckInResult(null);
+    submitting.current = true;
+    setChecking(true);
+    setCheckError("");
+    setResult(null);
 
     try {
-      const response = await checkInStudent(
-        id,
-        cleanedToken
-      );
+      const response = await checkInStudent(id, value);
 
-      setCheckInResult(response);
+      if (!active.current) return;
+
+      setResult(response);
       setToken("");
 
-      // Get the latest attendance statistics.
-      try {
-        await loadAttendance();
-      } catch {
-        setError(
-          "Check-in succeeded, but attendance statistics could not be refreshed."
-        );
-      }
+      // A refresh failure must not hide a successful check-in.
+      await refresh();
     } catch (err) {
-      setCheckInError(getErrorMessage(err));
+      if (active.current) {
+        setCheckError(message(err));
+      }
     } finally {
-      submittingRef.current = false;
-      setCheckingIn(false);
+      submitting.current = false;
+
+      if (active.current) {
+        setChecking(false);
+      }
     }
   }
 
+  const records = data?.attendance || [];
 
-  // ==========================================================
-  // FILTER ATTENDANCE RECORDS
-  // ==========================================================
-
-  const filteredAttendance = useMemo(() => {
-    if (!data) return [];
-
-    if (filter === "all") {
-      return data.attendance;
-    }
-
-    return data.attendance.filter(
-      (record) => record.attendance_status === filter
-    );
-  }, [data, filter]);
-
-
-  // ==========================================================
-  // RENDER
-  // ==========================================================
-
-  if (loading) {
-    return (
-      <div className="organizer-loading" role="status">
-        Loading attendance dashboard...
-      </div>
-    );
-  }
+  const filtered = useMemo(
+    () =>
+      records.filter(
+        (record) =>
+          filter === "all" ||
+          record.attendance_status === filter
+      ),
+    [records, filter]
+  );
 
   if (!data) {
     return (
-      <div className="organizer-error" role="alert">
-        {error || "Attendance information is unavailable."}
+      <main className="at-page">
+        <Link
+          className="at-back"
+          to={`/organizer/events/${id}/participants`}
+        >
+          ← Back to participants
+        </Link>
 
-        <div>
-          <Link to="/organizer">
-            Return to Dashboard →
-          </Link>
+        <div
+          className="at-panel at-state"
+          role={error ? "alert" : "status"}
+        >
+          {error || "Loading attendance…"}
+
+          {error && (
+            <button
+              className="at-button"
+              onClick={refresh}
+              disabled={refreshing}
+            >
+              Try again
+            </button>
+          )}
         </div>
-      </div>
+      </main>
     );
   }
 
   const stats = data.statistics;
+  const rawPercentage = Number(
+    stats.attendance_percentage
+  );
+
+  const percentage = Number.isFinite(rawPercentage)
+    ? Math.max(0, Math.min(100, rawPercentage))
+    : 0;
+
+  const counts = {
+    all: records.length,
+    present: records.filter(
+      (row) => row.attendance_status === "present"
+    ).length,
+    pending: records.filter(
+      (row) => row.attendance_status === "pending"
+    ).length,
+  };
 
   return (
-    <div className="organizer-attendance-page">
-
-      {/* Navigation */}
-
+    <main className="at-page">
       <Link
+        className="at-back"
         to={`/organizer/events/${id}/participants`}
-        className="organizer-back-link"
       >
-        ← Back to Participants
+        ← Back to participants
       </Link>
 
-
-      {/* Heading */}
-
-      <div className="organizer-page-heading">
-
+      <header className="at-heading">
         <div>
-          <span className="organizer-eyebrow">
-            EVENT CHECK-IN
+          <span className="at-eyebrow">
+            Event check-in
           </span>
 
           <h1>
-            Show up.
-            <br />
-            <span>Check in.</span>
+            Attendance<span>.</span>
           </h1>
 
           <p>{data.event.title}</p>
         </div>
 
         <Link
-          to="/organizer"
-          className="organizer-primary-button"
+          className="at-button"
+          to={`/organizer/events/${id}/participants`}
         >
-          Dashboard →
+          View participants ↗
         </Link>
-
-      </div>
-
-
-      {/* Statistics */}
+      </header>
 
       <section
-        className="organizer-stats"
-        aria-label="Attendance statistics"
+        className="at-summary at-panel"
+        aria-label="Attendance summary"
       >
+        <div className="at-metrics">
+          <div>
+            <span>Registered</span>
+            <strong>{stats.registered ?? "—"}</strong>
+          </div>
 
-        <article className="organizer-stat-card">
-          <span>REGISTERED</span>
+          <div className="at-metric-blue">
+            <span>Checked in</span>
+            <strong>{stats.checked_in ?? "—"}</strong>
+          </div>
 
-          <strong>{stats.registered}</strong>
+          <div className="at-metric-lime">
+            <span>Pending</span>
+            <strong>{stats.pending ?? "—"}</strong>
+          </div>
+        </div>
 
-          <p>Active event registrations</p>
-        </article>
+        <div className="at-progress">
+          <span>
+            {stats.checked_in ?? "—"} of{" "}
+            {stats.registered ?? "—"} checked in
+          </span>
 
+          <div
+            className="at-track"
+            role="progressbar"
+            aria-label="Attendance percentage"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percentage}
+          >
+            <div
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
 
-        <article className="organizer-stat-card organizer-stat-blue">
-          <span>CHECKED IN</span>
-
-          <strong>{stats.checked_in}</strong>
-
-          <p>Students marked present</p>
-        </article>
-
-
-        <article className="organizer-stat-card organizer-stat-lime">
-          <span>PENDING</span>
-
-          <strong>{stats.pending}</strong>
-
-          <p>Students awaiting check-in</p>
-        </article>
-
+          <strong>{percentage}%</strong>
+        </div>
       </section>
 
+      {error && (
+        <div
+          className="at-notice at-error"
+          role="alert"
+        >
+          <strong>
+            Attendance could not be refreshed.
+          </strong>
 
-      {/* Attendance percentage */}
-
-      <section className="attendance-progress-section">
-
-        <div className="attendance-progress-heading">
-          <strong>Attendance progress</strong>
+          <p>{error}</p>
 
           <span>
-            {stats.attendance_percentage}% checked in
+            Displayed totals may be out of date. Use
+            Refresh below.
           </span>
         </div>
+      )}
 
-        <div className="attendance-progress-track">
-          <div
-            className="attendance-progress-fill"
-            style={{
-              width: `${Math.min(
-                100,
-                stats.attendance_percentage
-              )}%`,
-            }}
-          />
-        </div>
+      <section
+        className="at-workspace"
+        aria-label="Ticket check-in"
+      >
+        <article className="at-panel at-camera">
+          <div className="at-panel-heading">
+            <h2>Scan a ticket</h2>
 
-      </section>
-
-
-      {/* Scanner */}
-
-      <section className="attendance-scanner-section">
-
-        <div className="attendance-section-heading">
-
-          <div>
-            <span className="organizer-eyebrow">
-              SCAN & VERIFY
+            <span className="at-camera-label">
+              {scanning
+                ? "Scanner open"
+                : "Camera off"}
             </span>
-
-            <h2>Ticket scanner</h2>
-
-            <p>
-              Scan a student's QR ticket or enter its
-              token manually to record attendance.
-            </p>
           </div>
 
-        </div>
+          {scanning ? (
+            <Camera
+              onCapture={capture}
+              onError={failCamera}
+            />
+          ) : (
+            <div className="at-camera-placeholder">
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                aria-hidden="true"
+              >
+                <path d="M8 5 9.5 3h5L16 5h4a1 1 0 0 1 1 1v13H3V6a1 1 0 0 1 1-1Z" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
 
+              <h3>Ready when you are</h3>
 
-        <div className="attendance-scanner-grid">
-
-          {/* Camera */}
-
-          <div className="attendance-camera-card">
-
-            <div className="attendance-camera-heading">
-              <span>01 / CAMERA SCANNER</span>
+              <p>
+                Allow camera access to scan a
+                student’s QR ticket.
+              </p>
             </div>
+          )}
 
-            {!scanningEnabled ? (
-
-              <div className="attendance-camera-placeholder">
-
-                <div className="attendance-scan-icon">
-                  ▣
-                </div>
-
-                <h3>Ready to scan.</h3>
-
-                <p>
-                  Enable your camera to scan a student's
-                  EventHub QR ticket.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCheckInError("");
-                    setCheckInResult(null);
-                    setScanningEnabled(true);
-                  }}
-                  disabled={checkingIn}
-                >
-                  Start Camera →
-                </button>
-
-              </div>
-
-            ) : (
-
-              <div className="attendance-camera-active">
-
-                <div id="eventhub-qr-reader" />
-
-                <button
-                  type="button"
-                  className="attendance-stop-camera"
-                  onClick={() => setScanningEnabled(false)}
-                >
-                  Stop Scanner
-                </button>
-
-              </div>
-
-            )}
-
+          <div className="at-camera-actions">
+            <button
+              type="button"
+              className={`at-button ${
+                scanning ? "" : "at-primary"
+              }`}
+              disabled={checking || refreshing}
+              onClick={() => {
+                setCameraError("");
+                setScanning((value) => !value);
+              }}
+            >
+              {scanning
+                ? "Close scanner"
+                : "Start camera"}
+            </button>
           </div>
 
+          {cameraError && (
+            <div
+              className="at-notice at-error"
+              role="alert"
+            >
+              {cameraError} You can also enter the
+              ticket token manually.
+            </div>
+          )}
+        </article>
 
-          {/* Manual check-in */}
+        <article className="at-panel at-manual">
+          <h2>Enter ticket manually</h2>
 
-          <div className="attendance-manual-card">
+          <p>
+            Paste a ticket token, or review the token
+            captured by the scanner.
+          </p>
 
-            <span className="attendance-card-eyebrow">
-              02 / VERIFY ENTRY
+          <form onSubmit={submit}>
+            <label htmlFor="attendance-token">
+              Ticket token
+            </label>
+
+            <input
+              ref={tokenInput}
+              id="attendance-token"
+              value={token}
+              onChange={(event) => {
+                setToken(event.target.value);
+                setResult(null);
+                setCheckError("");
+              }}
+              disabled={checking || scanning}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Paste or scan ticket UUID"
+              required
+            />
+
+            <button
+              className="at-button at-primary"
+              type="submit"
+              disabled={
+                checking ||
+                refreshing ||
+                scanning ||
+                !token.trim()
+              }
+            >
+              {checking
+                ? "Verifying ticket…"
+                : "Verify & check in"}
+            </button>
+
+            <span className="at-form-help">
+              Scanning reads the token. Press Verify
+              &amp; check in to record attendance.
             </span>
+          </form>
 
-            <h3>Check in a student.</h3>
+          {result && (
+            <div
+              className="at-notice at-success"
+              role="status"
+            >
+              <strong>Attendance confirmed</strong>
 
-            <p>
-              After scanning a QR code, verify the ticket
-              and confirm attendance.
-            </p>
+              <p>
+                {result.student_username} has been
+                checked in successfully.
+              </p>
 
-            <form onSubmit={handleCheckIn}>
+              <span>
+                {dateTime(result.checked_in_at)}
+              </span>
+            </div>
+          )}
 
-              <label htmlFor="attendance-token">
-                TICKET TOKEN
-              </label>
-
-              <input
-                id="attendance-token"
-                type="text"
-                value={token}
-                onChange={(event) => {
-                  setToken(event.target.value);
-                  setCheckInResult(null);
-                  setCheckInError("");
-                }}
-                placeholder="Paste or scan ticket UUID"
-                autoComplete="off"
-                spellCheck={false}
-                required
-              />
-
-              <button
-                type="submit"
-                disabled={
-                  checkingIn ||
-                  !token.trim() ||
-                  scanningEnabled
-                }
-              >
-                {checkingIn
-                  ? "Verifying ticket..."
-                  : "Verify & Check In →"}
-              </button>
-
-            </form>
-
-            {checkInResult && (
-              <div
-                className="attendance-success"
-                role="status"
-              >
-                <strong>✓ Attendance confirmed</strong>
-
-                <p>
-                  {checkInResult.student_username}
-                  {" "}has been checked in successfully.
-                </p>
-
-                <span>
-                  {formatDateTime(
-                    checkInResult.checked_in_at
-                  )}
-                </span>
-              </div>
-            )}
-
-            {checkInError && (
-              <div
-                className="attendance-error"
-                role="alert"
-              >
-                {checkInError}
-              </div>
-            )}
-
-          </div>
-
-        </div>
-
-        <p className="attendance-security-note">
-          Only registered students with valid tickets
-          can be checked in. Duplicate and invalid
-          tickets are rejected by the server.
-        </p>
-
+          {checkError && (
+            <div
+              className="at-notice at-error"
+              role="alert"
+            >
+              {checkError}
+            </div>
+          )}
+        </article>
       </section>
 
+      <p className="at-security">
+        Attendance is confirmed by the server.
+        Invalid and duplicate tickets are rejected.
+      </p>
 
-      {/* Attendance records */}
-
-      <section className="organizer-events-section">
-
-        <div className="organizer-section-heading">
-
-          <div>
-            <span className="organizer-eyebrow">
-              LIVE ATTENDANCE
-            </span>
-
-            <h2>Attendance Register</h2>
-          </div>
+      <section
+        className="at-panel at-register"
+        aria-labelledby="attendance-register"
+      >
+        <div className="at-panel-heading">
+          <h2 id="attendance-register">
+            Attendance register
+          </h2>
 
           <button
             type="button"
-            className="attendance-refresh-button"
-            onClick={async () => {
-              setError("");
-
-              try {
-                await loadAttendance();
-              } catch (err) {
-                setError(getErrorMessage(err));
-              }
-            }}
+            className="at-button"
+            onClick={refresh}
+            disabled={refreshing || checking}
           >
-            Refresh ↻
+            {refreshing
+              ? "Refreshing…"
+              : "Refresh ↻"}
           </button>
-
         </div>
 
-
-        {error && (
-          <div
-            className="attendance-error"
-            role="alert"
-          >
-            {error}
-          </div>
-        )}
-
-
-        {/* Filters */}
-
-        <div className="participant-filters">
-
+        <div
+          className="at-filters"
+          aria-label="Filter attendance"
+        >
           {[
             ["all", "All"],
             ["present", "Present"],
             ["pending", "Pending"],
           ].map(([value, label]) => (
-
             <button
-              key={value}
               type="button"
-              onClick={() => setFilter(value)}
-              className={
-                filter === value
-                  ? "participant-filter-active"
-                  : ""
-              }
+              key={value}
               aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
             >
               {label}
+              <span>{counts[value]}</span>
             </button>
-
           ))}
-
         </div>
 
+        <div
+          className="at-table-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="Attendance records"
+          aria-busy={refreshing}
+        >
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Student</th>
+                <th scope="col">Registration</th>
+                <th scope="col">Attendance</th>
+                <th scope="col">Check-in time</th>
+              </tr>
+            </thead>
 
-        {/* Table */}
-
-        {filteredAttendance.length === 0 ? (
-
-          <div className="organizer-empty-state">
-
-            <h3>No attendance records found.</h3>
-
-            <p>
-              Registered students will appear here.
-              Check-ins will update their attendance status.
-            </p>
-
-          </div>
-
-        ) : (
-
-          <div className="organizer-table-wrapper">
-
-            <table className="organizer-events-table">
-
-              <thead>
-                <tr>
-                  <th>STUDENT</th>
-                  <th>REGISTRATION</th>
-                  <th>ATTENDANCE</th>
-                  <th>CHECK-IN TIME</th>
-                </tr>
-              </thead>
-
-              <tbody>
-
-                {filteredAttendance.map((record) => (
-
-                  <tr key={record.registration_id}>
-
-                    <td>
-                      <strong>
-                        {record.student_username}
-                      </strong>
-                    </td>
-
-                    <td>
-                      #{record.registration_id}
-                    </td>
-
-                    <td>
+            <tbody>
+              {filtered.map((record) => (
+                <tr key={record.registration_id}>
+                  <th scope="row">
+                    <div className="at-student">
                       <span
-                        className={`attendance-status attendance-status-${
-                          record.attendance_status
-                        }`}
+                        className="at-avatar"
+                        aria-hidden="true"
                       >
-                        {record.attendance_status === "present"
-                          ? "Present"
-                          : "Pending"}
+                        {record.student_username
+                          ?.charAt(0)
+                          .toUpperCase() || "?"}
                       </span>
-                    </td>
 
-                    <td>
-                      {formatDateTime(
-                        record.checked_in_at
-                      )}
-                    </td>
+                      {record.student_username}
+                    </div>
+                  </th>
 
-                  </tr>
+                  <td>
+                    #{record.registration_id}
+                  </td>
 
-                ))}
+                  <td>
+                    <span
+                      className={`at-status ${
+                        record.attendance_status ===
+                        "present"
+                          ? "at-present"
+                          : "at-pending"
+                      }`}
+                    >
+                      {record.attendance_status ===
+                      "present"
+                        ? "Present"
+                        : "Pending"}
+                    </span>
+                  </td>
 
-              </tbody>
+                  <td>
+                    {dateTime(
+                      record.checked_in_at
+                    )}
+                  </td>
+                </tr>
+              ))}
 
-            </table>
+              {!filtered.length && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="at-empty"
+                  >
+                    {records.length
+                      ? "No students match this attendance filter."
+                      : "Registered students will appear here."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
-          </div>
-
-        )}
-
+        <p className="at-table-footer">
+          Showing {filtered.length} of{" "}
+          {records.length} registered students
+        </p>
       </section>
-
-    </div>
+    </main>
   );
 }

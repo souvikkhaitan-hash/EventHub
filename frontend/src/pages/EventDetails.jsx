@@ -1,1043 +1,871 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Link,
   useNavigate,
   useParams,
 } from "react-router";
+
 import Navbar from "../components/Navbar";
+import EventCover from "../components/EventCover";
+import TeamRegistrationPanel from "../components/TeamRegistrationPanel";
+
 import { useAuth } from "../context/AuthContext";
+
 import {
   getPublicEvent,
   getMyRegistrations,
   registerForEvent,
 } from "../services/events";
+
 import {
   formatEventDateTime,
   getCategoryLabel,
 } from "../utils/eventFormat";
-import "../styles/discovery.css";
-import "../styles/registrations.css";
-import EventArtworkIcon from "../components/EventArtworkIcon";
-import TeamRegistrationPanel from "../components/TeamRegistrationPanel";
-// ============================================================
-// EVENTHUB 2.0 — EVENT DETAILS
-// ============================================================
-// Category artwork.
-const categorySymbols = {
-  technical: "{ }",
-  cultural: "✳",
-  workshop: "↗",
-  seminar: "◎",
-  sports: "◉",
-};
-// ============================================================
-// HELPERS
-// ============================================================
-function getErrorMessage(error) {
+
+import "../styles/event-details-editorial.css";
+
+// Convert a date into the UTC format used by calendar files.
+function calendarDate(value) {
+  return new Date(value)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
+}
+
+// Escape text that will be written into an .ics calendar file.
+function calendarText(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\r?\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function errorMessage(error) {
   return (
     error?.details?.message ||
     error?.details?.detail ||
     error?.message ||
-    "Something went wrong. Please try again."
+    "Please try again."
   );
 }
-// Convert event dates into a calendar-compatible UTC format.
-function formatCalendarDate(value) {
-  const date = new Date(value);
-  return date
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/**\.**\d{3}/, "");
-}
-// Escape special characters in an iCalendar text value.
-function escapeCalendarText(value) {
-  return String(value || "")
-    .replace(/**\\\**/g, "\\\\\\\\")
-    .replace(/\r?\n/g, "\\\n")
-    .replace(/,/g, "\\\\,")
-    .replace(/;/g, "\\\\;");
-}
-// ============================================================
-// REGISTRATION COUNTDOWN
-// ============================================================
-function getCountdown(deadline) {
-  const remaining =
-    new Date(deadline).getTime() - Date.now();
-  if (!Number.isFinite(remaining) || remaining <= 0) {
-    return {
-      expired: true,
-      text: "Registration closed",
-    };
-  }
-  const minutes = Math.floor(
-    remaining / (1000 * 60)
-  );
-  const days = Math.floor(minutes / (60 * 24));
-  const hours = Math.floor(
-    (minutes % (60 * 24)) / 60
-  );
-  const remainingMinutes = minutes % 60;
-  if (days > 0) {
-    return {
-      expired: false,
-      text: `${days}d ${hours}h remaining`,
-    };
-  }
-  if (hours > 0) {
-    return {
-      expired: false,
-      text: `${hours}h ${remainingMinutes}m remaining`,
-    };
-  }
-  return {
-    expired: false,
-    text:
-      minutes > 0
-        ? `${minutes}m remaining`
-        : "Less than a minute remaining",
-  };
-}
-// ============================================================
-// EVENT TIMELINE
-// ============================================================
-function EventTimeline({ event }) {
-  const now = Date.now();
-  const timeline = [
-    {
-      number: "01",
-      title: "Registration closes",
-      date: event.registration_deadline,
-    },
-    {
-      number: "02",
-      title: "Event begins",
-      date: event.start_datetime,
-    },
-    {
-      number: "03",
-      title: "Event ends",
-      date: event.end_datetime,
-    },
-  ];
+
+// Keep missing numbers separate from a genuine zero.
+function count(value) {
   return (
-    <section className="event-v2-timeline-section">
-      <div className="event-v2-section-heading">
-        <span className="discovery-eyebrow">
-          MARK YOUR CALENDAR
-        </span>
-        <h2>The event timeline.</h2>
-        <p>
-          Everything you need to know before
-          the experience begins.
-        </p>
-      </div>
-      <div className="event-v2-timeline">
-        {timeline.map((item) => {
-          const completed =
-            new Date(item.date).getTime() <= now;
-          return (
-            <div
-              key={item.number}
-              className={`event-v2-timeline-item ${
-                completed
-                  ? "event-v2-timeline-completed"
-                  : ""
-              }`}
-            >
-              <div className="event-v2-timeline-marker">
-                {completed ? "✓" : item.number}
-              </div>
-              <div className="event-v2-timeline-content">
-                <h3>{item.title}</h3>
-                <p>
-                  {formatEventDateTime(item.date)}
-                </p>
-                <span>
-                  {completed ? "Passed" : "Upcoming"}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
+    value != null &&
+    value !== "" &&
+    Number.isFinite(Number(value))
+  )
+    ? Math.max(0, Number(value))
+    : null;
 }
-// ============================================================
-// MAIN EVENT DETAILS COMPONENT
-// ============================================================
+
 export default function EventDetails() {
   const { id } = useParams();
+  const { user, loading } = useAuth();
+
+  // A different event/account starts with fresh registration state.
+  const pageKey = [
+    id,
+    user?.id ?? user?.username ?? "guest",
+    Boolean(user?.is_organizer),
+  ].join(":");
+
+  return (
+    <>
+      <Navbar />
+
+      <EventDetailsContent
+        key={pageKey}
+        id={id}
+        user={user}
+        authLoading={loading}
+      />
+    </>
+  );
+}
+
+function EventDetailsContent({
+  id,
+  user,
+  authLoading,
+}) {
   const navigate = useNavigate();
-  const {
-    user,
-    loading: authLoading,
-  } = useAuth();
-  // Event information.
+
+  const page = useRef(null);
+  const alive = useRef(false);
+  const busy = useRef(false);
+
   const [event, setEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [notFound, setNotFound] = useState(false);
-  // Registration information.
-  const [registration, setRegistration] =
-    useState(null);
-  const [
-    checkingRegistration,
-    setCheckingRegistration,
-  ] = useState(false);
-  const [
-    registrationChecked,
-    setRegistrationChecked,
-  ] = useState(false);
-  const [registering, setRegistering] =
-    useState(false);
-  const [
-    registrationError,
-    setRegistrationError,
-  ] = useState("");
-  const [
-    registrationSuccess,
-    setRegistrationSuccess,
-  ] = useState("");
-  // Share feedback.
-  const [shareMessage, setShareMessage] =
-    useState("");
-  // Current time for countdown and event status.
-  const [currentTime, setCurrentTime] =
-    useState(Date.now());
-  // ==========================================================
-  // UPDATE CURRENT TIME
-  // ==========================================================
+
+  const [load, setLoad] = useState({
+    loading: true,
+    error: "",
+    missing: false,
+  });
+
+  const [revision, setRevision] = useState(0);
+
+  const [registration, setRegistration] = useState(null);
+
+  const [check, setCheck] = useState({
+    loading: true,
+    error: "",
+  });
+
+  const [checkRevision, setCheckRevision] = useState(0);
+  const [registering, setRegistering] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [shareMessage, setShareMessage] = useState("");
+
+  const [now, setNow] = useState(() => Date.now());
+
+  // Update time-based availability without reloading the page.
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
+    alive.current = true;
+
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 15000);
+
     return () => {
-      window.clearInterval(interval);
+      alive.current = false;
+      clearInterval(timer);
     };
   }, []);
-  // ==========================================================
-  // LOAD PUBLIC EVENT
-  // ==========================================================
+
+  // Load the selected public event.
   useEffect(() => {
     let active = true;
-    async function loadEvent() {
-      setLoading(true);
-      setEvent(null);
-      setError("");
-      setNotFound(false);
-      setRegistration(null);
-      setRegistrationChecked(false);
-      setRegistrationError("");
-      setRegistrationSuccess("");
-      setShareMessage("");
-      try {
-        const data = await getPublicEvent(id);
-        if (active) {
-          setEvent(data);
-        }
-      } catch (err) {
-        if (active) {
-          if (err.status === 404) {
-            setNotFound(true);
-          } else {
-            setError(getErrorMessage(err));
-          }
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-    loadEvent();
+
+    setLoad({
+      loading: true,
+      error: "",
+      missing: false,
+    });
+
+    getPublicEvent(id)
+      .then((data) => {
+        if (!active) return;
+
+        setEvent(data);
+
+        setLoad({
+          loading: false,
+          error: "",
+          missing: false,
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+
+        setLoad({
+          loading: false,
+          error: errorMessage(error),
+          missing: error.status === 404,
+        });
+      });
+
     return () => {
       active = false;
     };
-  }, [id]);
-  // ==========================================================
-  // CHECK EXISTING STUDENT REGISTRATION
-  // ==========================================================
+  }, [id, revision]);
+
+  // Check individual registration only for student accounts.
+  // TeamRegistrationPanel handles the team flow separately.
   useEffect(() => {
     let active = true;
+
+    if (authLoading || !event) return;
+
     setRegistration(null);
-    setRegistrationChecked(false);
-    setRegistrationError("");
-    setRegistrationSuccess("");
-    if (authLoading || !event) {
-      return () => {
-        active = false;
-      };
+
+    if (
+      !user ||
+      user.is_organizer ||
+      event.registration_mode === "team"
+    ) {
+      setCheck({
+        loading: false,
+        error: "",
+      });
+
+      return;
     }
-    // Guests do not have existing registrations.
-    if (!user) {
-      setRegistrationChecked(true);
-      return () => {
-        active = false;
-      };
-    }
-    // Organizers cannot access student registration APIs.
-    if (user.is_organizer) {
-      setRegistrationChecked(true);
-      return () => {
-        active = false;
-      };
-    }
-    async function checkRegistration() {
-      setCheckingRegistration(true);
-      try {
-        const registrations =
-          await getMyRegistrations();
-        const existing = registrations.find(
-          (item) =>
-            Number(item.event) === Number(event.id)
-        );
-        if (active) {
-          setRegistration(existing || null);
-          setRegistrationChecked(true);
-        }
-      } catch (err) {
-        if (active) {
-          setRegistrationError(
-            "Unable to check your registration status. Refresh the page and try again."
+
+    setCheck({
+      loading: true,
+      error: "",
+    });
+
+    getMyRegistrations()
+      .then((items) => {
+        if (!Array.isArray(items)) {
+          throw new Error(
+            "Unable to check your registration."
           );
         }
-      } finally {
-        if (active) {
-          setCheckingRegistration(false);
-        }
-      }
-    }
-    checkRegistration();
+
+        if (!active) return;
+
+        const existing = items.find(
+          (item) =>
+            String(item.event) === String(event.id) &&
+            item.status === "registered"
+        );
+
+        setRegistration(existing || null);
+
+        setCheck({
+          loading: false,
+          error: "",
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+
+        setCheck({
+          loading: false,
+          error: errorMessage(error),
+        });
+      });
+
     return () => {
       active = false;
     };
-  }, [user, authLoading, event?.id]);
-  // ==========================================================
-  // REGISTRATION STATE
-  // ==========================================================
-  const alreadyRegistered =
+  }, [
+    event?.id,
+    event?.registration_mode,
+    authLoading,
+    user,
+    checkRevision,
+  ]);
+
+  // Reveal lower sections once when they enter the viewport.
+  useEffect(() => {
+    const node = page.current;
+
+    if (
+      !node ||
+      load.loading ||
+      !event ||
+      !window.IntersectionObserver ||
+      window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)"
+      ).matches
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+
+          entry.target.classList.add("ed-visible");
+          observer.unobserve(entry.target);
+        });
+      },
+      { threshold: 0.08 }
+    );
+
+    node.classList.add("ed-observing");
+
+    node
+      .querySelectorAll("[data-ed-reveal]")
+      .forEach((element) => observer.observe(element));
+
+    return () => {
+      observer.disconnect();
+      node.classList.remove("ed-observing");
+    };
+  }, [event?.id, load.loading]);
+
+  const teamEvent =
+    event?.registration_mode === "team";
+
+  const organiser = Boolean(user?.is_organizer);
+
+  const registered =
     registration?.status === "registered";
-  const isOrganizer =
-    Boolean(user?.is_organizer);
-  const ownEvent = Boolean(
-    user &&
-      event &&
-      user.username === event.organizer_name
+
+  const available = count(event?.available_seats);
+  const capacity = count(event?.capacity);
+
+  const reserved =
+    count(event?.registered_count) ??
+    (
+      capacity !== null && available !== null
+        ? Math.max(0, capacity - available)
+        : null
+    );
+
+  const deadline = Date.parse(
+    event?.registration_deadline
   );
-  const deadlineTime = event
-    ? new Date(
-        event.registration_deadline
-      ).getTime()
-    : 0;
-  const startTime = event
-    ? new Date(event.start_datetime).getTime()
-    : 0;
-  const endTime = event
-    ? new Date(event.end_datetime).getTime()
-    : 0;
-  const registrationClosed =
-    Boolean(event) &&
-    currentTime >= deadlineTime;
-  const eventStarted =
-    Boolean(event) &&
-    currentTime >= startTime;
-  const eventEnded =
-    Boolean(event) &&
-    currentTime >= endTime;
-  const availableSeats =
-    event?.available_seats == null
-      ? null
-      : Math.max(
-          0,
-          Number(event.available_seats)
-        );
-  const registeredCount =
-    event?.registered_count == null
-      ? null
-      : Number(event.registered_count);
-  const capacity = Number(
-    event?.capacity || 0
-  );
-  const eventFull =
-    availableSeats !== null &&
-    availableSeats <= 0;
-  const occupancy =
-    capacity > 0 &&
-    registeredCount !== null
-      ? Math.min(
-          100,
-          Math.max(
-            0,
-            (registeredCount / capacity) * 100
-          )
-        )
-      : 0;
+
+  const starts = Date.parse(event?.start_datetime);
+  const ends = Date.parse(event?.end_datetime);
+
+  const closed =
+    !Number.isFinite(deadline) || now >= deadline;
+
+  const started =
+    Number.isFinite(starts) && now >= starts;
+
+  const ended =
+    Number.isFinite(ends) && now >= ends;
+
+  const full = available === 0;
+
+  const open =
+    event?.status === "published" &&
+    !closed &&
+    !started &&
+    !full;
+
   const checking =
     authLoading ||
     (
       Boolean(user) &&
-      !isOrganizer &&
-      (
-        checkingRegistration ||
-        !registrationChecked
-      )
+      !organiser &&
+      !teamEvent &&
+      check.loading
     );
-  const registrationDisabled =
-    registering ||
-    checking ||
-    alreadyRegistered ||
-    registrationClosed ||
-    eventStarted ||
-    eventFull ||
-    isOrganizer;
-  const countdown = event
-    ? getCountdown(
-        event.registration_deadline
-      )
-    : null;
-  // ==========================================================
-  // REGISTRATION STATUS
-  // ==========================================================
-  function getRegistrationStatus() {
-    if (alreadyRegistered) {
-      return {
-        label: "YOU'RE REGISTERED",
-        type: "registered",
-      };
+
+  const status = registered
+    ? "You're registered"
+    : ended
+      ? "Event ended"
+      : started
+        ? "Event started"
+        : closed
+          ? "Registration closed"
+          : full
+            ? "Event full"
+            : "Registration open";
+
+  async function refreshEvent() {
+    try {
+      const updated = await getPublicEvent(id);
+
+      if (alive.current) {
+        setEvent(updated);
+      }
+    } catch {
+      // A successful registration/team action stays successful
+      // even if the secondary count refresh fails.
     }
-    if (eventEnded) {
-      return {
-        label: "EVENT ENDED",
-        type: "closed",
-      };
-    }
-    if (eventStarted) {
-      return {
-        label: "EVENT STARTED",
-        type: "closed",
-      };
-    }
-    if (registrationClosed) {
-      return {
-        label: "REGISTRATION CLOSED",
-        type: "closed",
-      };
-    }
-    if (eventFull) {
-      return {
-        label: "EVENT FULL",
-        type: "full",
-      };
-    }
-    return {
-      label: "REGISTRATION OPEN",
-      type: "open",
-    };
   }
-  const registrationStatus =
-    getRegistrationStatus();
-  // ==========================================================
-  // BUTTON TEXT
-  // ==========================================================
-  function getRegistrationButtonText() {
-    if (registering) {
-      return "Registering...";
-    }
-    if (alreadyRegistered) {
-      return "✓ You're Registered";
-    }
-    if (isOrganizer) {
-      return ownEvent
-        ? "Your Event"
-        : "Organizer Account";
-    }
-    if (checking) {
-      return "Checking registration...";
-    }
-    if (eventEnded) {
-      return "Event Ended";
-    }
-    if (eventStarted) {
-      return "Event Started";
-    }
-    if (registrationClosed) {
-      return "Registration Closed";
-    }
-    if (eventFull) {
-      return "Event Full";
-    }
-    if (!user) {
-      return "Log in to Register →";
-    }
-    return "Register Now →";
-  }
-  // ==========================================================
-  // REGISTER FOR EVENT
-  // ==========================================================
-  async function handleRegistration() {
-    // Individual registration must never be used for team events.
-    if (event?.registration_mode === "team") return;
+
+  async function register() {
     if (
-      registering ||
+      busy.current ||
       checking ||
-      authLoading ||
-      isOrganizer
+      organiser ||
+      teamEvent ||
+      !open ||
+      registered ||
+      check.error
     ) {
       return;
     }
+
     if (!user) {
       navigate("/login");
       return;
     }
-    if (
-      !registrationChecked ||
-      !event ||
-      alreadyRegistered ||
-      registrationClosed ||
-      eventStarted ||
-      eventFull
-    ) {
-      return;
-    }
-    setRegistrationError("");
-    setRegistrationSuccess("");
+
+    // The ref blocks two clicks before React updates the button.
+    busy.current = true;
     setRegistering(true);
+    setActionError("");
+    setNotice("");
+
     try {
-      const result =
-        await registerForEvent(event.id);
+      const result = await registerForEvent(event.id);
+
+      if (!alive.current) return;
+
       setRegistration(result.registration);
-      setRegistrationSuccess(
-        "You're in! Your place has been reserved. Your digital ticket is ready."
+
+      setNotice(
+        "Your place is reserved. Your digital ticket is ready in My Registrations."
       );
-      // Refresh public event counts after registration.
-      // Django remains responsible for actual seat capacity.
-      try {
-        const updatedEvent =
-          await getPublicEvent(event.id);
-        setEvent(updatedEvent);
-      } catch {
-        // Registration has already succeeded.
-        // Do not incorrectly report an error if the
-        // secondary count refresh fails.
+
+      await refreshEvent();
+    } catch (error) {
+      if (alive.current) {
+        setActionError(errorMessage(error));
       }
-    } catch (err) {
-      setRegistrationError(
-        getErrorMessage(err)
-      );
     } finally {
-      setRegistering(false);
+      busy.current = false;
+
+      if (alive.current) {
+        setRegistering(false);
+      }
     }
   }
-  // ==========================================================
-  // SHARE EVENT
-  // ==========================================================
-  async function handleShare() {
-    if (!event) return;
+
+  async function share() {
     setShareMessage("");
-    const shareData = {
-      title: event.title,
-      text: `Check out ${event.title} on EventHub!`,
-      url: window.location.href,
-    };
+
     try {
       if (navigator.share) {
-        await navigator.share(shareData);
-        return;
-      }
-      if (navigator.clipboard?.writeText) {
+        await navigator.share({
+          title: event.title,
+          url: window.location.href,
+        });
+      } else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(
           window.location.href
         );
+
+        if (alive.current) {
+          setShareMessage("Event link copied.");
+        }
+      } else {
         setShareMessage(
-          "Event link copied to clipboard!"
+          "Copy the link from your browser's address bar."
         );
-        return;
       }
-      setShareMessage(
-        "Copy the event URL from your browser's address bar."
-      );
-    } catch (err) {
-      if (err?.name === "AbortError") {
-        return;
+    } catch (error) {
+      if (
+        error.name !== "AbortError" &&
+        alive.current
+      ) {
+        setShareMessage(
+          "Copy the link from your browser's address bar."
+        );
       }
-      setShareMessage(
-        "Unable to share automatically. Copy the URL from your browser."
-      );
     }
   }
-  // ==========================================================
-  // ADD TO CALENDAR
-  // ==========================================================
-  function handleAddToCalendar() {
-    if (!event) return;
-    const start = new Date(
-      event.start_datetime
-    );
-    const end = new Date(
-      event.end_datetime
-    );
-    if (
-      Number.isNaN(start.getTime()) ||
-      Number.isNaN(end.getTime())
-    ) {
+
+  function addToCalendar() {
+    if (![starts, ends].every(Number.isFinite)) {
+      setShareMessage(
+        "Calendar dates are unavailable."
+      );
       return;
     }
+
     const lines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
       "PRODID:-//EventHub//Campus Events//EN",
-      "CALSCALE:GREGORIAN",
-      "METHOD:PUBLISH",
       "BEGIN:VEVENT",
-      `UID:eventhub-event-${event.id}@eventhub.local`,
-      `DTSTAMP:${formatCalendarDate(new Date())}`,
-      `DTSTART:${formatCalendarDate(start)}`,
-      `DTEND:${formatCalendarDate(end)}`,
-      `SUMMARY:${escapeCalendarText(event.title)}`,
-      `DESCRIPTION:${escapeCalendarText(
-        event.description
-      )}`,
-      `LOCATION:${escapeCalendarText(event.venue)}`,
+      `UID:eventhub-${event.id}@eventhub.local`,
+      `DTSTAMP:${calendarDate(Date.now())}`,
+      `DTSTART:${calendarDate(starts)}`,
+      `DTEND:${calendarDate(ends)}`,
+      `SUMMARY:${calendarText(event.title)}`,
+      `DESCRIPTION:${calendarText(event.description)}`,
+      `LOCATION:${calendarText(event.venue)}`,
       "END:VEVENT",
       "END:VCALENDAR",
     ];
-    const calendarContent =
-      lines.join("\r\n") + "\r\n";
+
     const blob = new Blob(
-      [calendarContent],
-      {
-        type: "text/calendar;charset=utf-8",
-      }
+      [lines.join("\r\n") + "\r\n"],
+      { type: "text/calendar;charset=utf-8" }
     );
+
     const url = URL.createObjectURL(blob);
-    const anchor =
-      document.createElement("a");
+    const anchor = document.createElement("a");
+
     anchor.href = url;
-    anchor.download =
-      `eventhub-event-${event.id}.ics`;
+    anchor.download = `eventhub-${event.id}.ics`;
+
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    window.setTimeout(() => {
-      URL.revokeObjectURL(url);
-    }, 1000);
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  // ==========================================================
-  // PAGE
-  // ==========================================================
+
   return (
-    <>
-      <Navbar />
-      <main className="event-details-page event-details-v2">
-        <div className="container">
-          {/* BACK NAVIGATION */}
-          <Link
-            to="/events"
-            className="event-details-back"
-          >
-            ← Explore all events
-          </Link>
-          {/* LOADING */}
-          {loading && (
-            <div
-              className="discovery-message"
-              role="status"
-            >
-              <span className="discovery-message-icon">
-                ✳
-              </span>
-              <h2>Getting your event ready...</h2>
-              <p>
-                Loading event information.
-              </p>
-            </div>
-          )}
-          {/* NOT FOUND */}
-          {!loading && notFound && (
-            <div className="discovery-message">
-              <h2>Event not available.</h2>
-              <p>
-                This event may have been cancelled,
-                removed, or may no longer be upcoming.
-              </p>
-              <Link
-                to="/events"
-                className="discovery-action-button"
+    <main className="ed-page" ref={page}>
+      <div className="ed-shell">
+        <Link className="ed-back" to="/events">
+          ← Explore all events
+        </Link>
+
+        {load.loading ? (
+          <div className="ed-message" role="status">
+            Getting your event ready…
+          </div>
+        ) : load.error ? (
+          <div className="ed-message" role="alert">
+            <h1>
+              {load.missing
+                ? "Event not available."
+                : "Unable to load this event."}
+            </h1>
+
+            <p>
+              {load.missing
+                ? "It may no longer be upcoming or published."
+                : load.error}
+            </p>
+
+            {!load.missing && (
+              <button
+                className="ed-button"
+                onClick={() =>
+                  setRevision((value) => value + 1)
+                }
               >
-                Explore other events →
-              </Link>
-            </div>
-          )}
-          {/* ERROR */}
-          {!loading && error && (
-            <div
-              className="discovery-message"
-              role="alert"
-            >
-              <h2>Unable to load this event.</h2>
-              <p>{error}</p>
-            </div>
-          )}
-          {/* EVENT CONTENT */}
-          {!loading &&
-            event &&
-            !error &&
-            !notFound && (
-              <>
-                {/* ======================================
-                    PREMIUM EVENT HERO
-                ====================================== */}
-                <section
-                  className={`event-v2-hero event-v2-category-${event.category}`}
-                >
-                  <div className="event-v2-hero-copy">
-                    <span className="event-v2-hero-eyebrow">
-                      EVENTHUB / CAMPUS EXPERIENCES
+                Try again
+              </button>
+            )}
+          </div>
+        ) : event && (
+          <>
+            <header className="ed-hero">
+              <div className="ed-hero-copy">
+                <div className="ed-tags">
+                  <span>
+                    {getCategoryLabel(event.category)}
+                  </span>
+
+                  <span>
+                    {teamEvent
+                      ? "Team event"
+                      : "Individual event"}
+                  </span>
+                </div>
+
+                <h1>{event.title}</h1>
+
+                <p>
+                  Organised by{" "}
+                  <strong>
+                    {event.organizer_name}
+                  </strong>
+                </p>
+
+                <div className="ed-actions">
+                  <button
+                    className="ed-button"
+                    onClick={share}
+                  >
+                    ↗ &nbsp; Share event
+                  </button>
+
+                  <button
+                    className="ed-button ed-button--light"
+                    onClick={addToCalendar}
+                  >
+                    ▦ &nbsp; Add to calendar
+                  </button>
+                </div>
+
+                {shareMessage && (
+                  <p
+                    className="ed-feedback"
+                    role="status"
+                  >
+                    {shareMessage}
+                  </p>
+                )}
+              </div>
+
+              <div className="ed-hero-photo">
+                <EventCover
+                  category={event.category}
+                />
+
+                <span>Category cover</span>
+              </div>
+            </header>
+
+            <dl className="ed-quick-facts">
+              <div>
+                <dt>Event starts</dt>
+                <dd>
+                  {formatEventDateTime(
+                    event.start_datetime
+                  )}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Venue</dt>
+                <dd>
+                  {event.venue || "To be announced"}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Seats available</dt>
+                <dd>
+                  {available ?? "—"}
+                  {capacity > 0 && ` of ${capacity}`}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="ed-layout">
+              <div className="ed-main">
+                <section data-ed-reveal>
+                  <p className="ed-eyebrow">
+                    The experience
+                  </p>
+
+                  <h2>About this event.</h2>
+
+                  <p className="ed-description">
+                    {event.description ||
+                      "The organiser has not added a description yet."}
+                  </p>
+                </section>
+
+                <section data-ed-reveal>
+                  <p className="ed-eyebrow">
+                    Mark your calendar
+                  </p>
+
+                  <h2>Event timeline.</h2>
+
+                  <p className="ed-muted">
+                    Everything you need to know before
+                    the experience begins.
+                  </p>
+
+                  <ol className="ed-timeline">
+                    {[
+                      [
+                        "Registration closes",
+                        event.registration_deadline,
+                      ],
+                      [
+                        "Event begins",
+                        event.start_datetime,
+                      ],
+                      [
+                        "Event ends",
+                        event.end_datetime,
+                      ],
+                    ].map(([label, date], index) => {
+                      const time = Date.parse(date);
+
+                      const passed =
+                        Number.isFinite(time) &&
+                        now >= time;
+
+                      return (
+                        <li key={label}>
+                          <span className="ed-number">
+                            {passed
+                              ? "✓"
+                              : `0${index + 1}`}
+                          </span>
+
+                          <div>
+                            <h3>{label}</h3>
+
+                            <time dateTime={date}>
+                              {formatEventDateTime(date)}
+                            </time>
+                          </div>
+
+                          <span className="ed-timeline-state">
+                            {!Number.isFinite(time)
+                              ? "Unspecified"
+                              : passed
+                                ? "Passed"
+                                : "Upcoming"}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </section>
+
+                <section data-ed-reveal>
+                  <p className="ed-eyebrow">
+                    The people behind it
+                  </p>
+
+                  <h2>Meet your organiser.</h2>
+
+                  <div className="ed-organiser">
+                    <span>
+                      {event.organizer_name
+                        ?.charAt(0)
+                        .toUpperCase() || "E"}
                     </span>
-                    <span className="event-v2-category-pill">
-                      {getCategoryLabel(
-                        event.category
-                      )}
-                    </span>
-                    <h1>{event.title}</h1>
-                    <p className="event-v2-organizer">
-                      Organized by{" "}
+
+                    <div>
                       <strong>
                         {event.organizer_name}
                       </strong>
-                    </p>
-                    <div className="event-v2-hero-actions">
-                      <button
-                        type="button"
-                        className="event-v2-share-button"
-                        onClick={handleShare}
-                      >
-                        <span aria-hidden="true">
-                          ↗
-                        </span>
-                        Share event
-                      </button>
-                      <button
-                        type="button"
-                        className="event-v2-calendar-button"
-                        onClick={handleAddToCalendar}
-                      >
-                        <span aria-hidden="true">
-                          ◷
-                        </span>
-                        Add to calendar
-                      </button>
+
+                      <small>Event organiser</small>
                     </div>
-                    {shareMessage && (
-                      <p
-                        className="event-v2-share-message"
-                        role="status"
-                      >
-                        {shareMessage}
-                      </p>
-                    )}
-                  </div>
-                  {/* CATEGORY ARTWORK */}
-                  <div
-                    className="event-v2-hero-art"
-                    aria-hidden="true"
-                  >
-                    <div className="event-v2-art-circle" />
-                    <div className="event-v2-art-symbol">
-                      <EventArtworkIcon event={event} />
-                    </div>
-                    <span className="event-v2-art-caption">
-                      SHOW UP.
-                      <br />
-                      STAND OUT.
-                    </span>
-                    <span className="event-v2-art-spark">
-                      ✳
-                    </span>
                   </div>
                 </section>
-                {/* ======================================
-                    EVENT QUICK FACTS
-                ====================================== */}
-                <div className="event-v2-quick-facts">
-                  <div>
-                    <span className="event-v2-fact-icon">
-                      ◷
-                    </span>
-                    <div>
-                      <span>EVENT STARTS</span>
-                      <strong>
-                        {formatEventDateTime(
-                          event.start_datetime
-                        )}
-                      </strong>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="event-v2-fact-icon">
-                      ⌖
-                    </span>
-                    <div>
-                      <span>LOCATION</span>
-                      <strong>
-                        {event.venue}
-                      </strong>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="event-v2-fact-icon">
-                      ✳
-                    </span>
-                    <div>
-                      <span>AVAILABLE SEATS</span>
-                      <strong>
-                        {availableSeats !== null
-                          ? `${availableSeats} of ${capacity}`
-                          : capacity}
-                      </strong>
-                    </div>
-                  </div>
+              </div>
+
+              <aside className="ed-sidebar">
+                <span
+                  className={`ed-status ${
+                    open || registered
+                      ? "ed-status--open"
+                      : ""
+                  }`}
+                >
+                  ● &nbsp; {status}
+                </span>
+
+                <h2>Plan your place.</h2>
+
+                <div className="ed-deadline">
+                  <span>Registration deadline</span>
+
+                  <strong>
+                    {formatEventDateTime(
+                      event.registration_deadline
+                    )}
+                  </strong>
                 </div>
-                {/* ======================================
-                    MAIN CONTENT
-                ====================================== */}
-                <div className="event-details-layout event-v2-layout">
-                  {/* LEFT COLUMN */}
-                  <div className="event-v2-main">
-                    {/* ABOUT */}
-                    <section className="event-details-description event-v2-about">
-                      <span className="discovery-eyebrow">
-                        THE EXPERIENCE
-                      </span>
-                      <h2>
-                        About this event.
-                      </h2>
-                      <p>
-                        {event.description}
-                      </p>
-                    </section>
-                    {/* TIMELINE */}
-                    <EventTimeline event={event} />
-                    {/* ORGANIZER */}
-                    <section className="event-v2-organizer-section">
-                      <span className="discovery-eyebrow">
-                        THE PEOPLE BEHIND IT
-                      </span>
-                      <h2>Meet your organizer.</h2>
-                      <div className="event-v2-organizer-card">
-                        <div className="event-v2-organizer-avatar">
-                          {event.organizer_name
-                            ?.charAt(0)
-                            .toUpperCase()}
-                        </div>
-                        <div>
-                          <strong>
-                            {event.organizer_name}
-                          </strong>
-                          <span>
-                            Event organizer
-                          </span>
-                        </div>
-                      </div>
-                    </section>
+
+                <div className="ed-availability">
+                  <div>
+                    <span>Seats available</span>
+
+                    <strong>
+                      {available ?? "—"}
+                      {capacity > 0 &&
+                        ` of ${capacity}`}
+                    </strong>
                   </div>
-                  {/* ======================================
-                      REGISTRATION SIDEBAR
-                  ====================================== */}
-                  <aside className="event-details-sidebar event-v2-sidebar">
-                    {/* STATUS */}
-                    <div
-                      className={`event-v2-status event-v2-status-${registrationStatus.type}`}
-                    >
-                      <span className="event-v2-status-dot" />
-                      {registrationStatus.label}
-                    </div>
-                    <h2>
-                      Your next experience
-                      starts here.
-                    </h2>
-                    {/* COUNTDOWN */}
-                    {!alreadyRegistered &&
-                      !registrationClosed &&
-                      !eventStarted &&
-                      !eventFull &&
-                      countdown && (
-                        <div className="event-v2-countdown">
-                          <span>
-                            REGISTRATION CLOSES IN
-                          </span>
-                          <strong>
-                            {countdown.text}
-                          </strong>
-                        </div>
-                      )}
-                    {/* EVENT INFORMATION */}
-                    <div className="event-details-info event-v2-info">
-                      <div>
-                        <span>STARTS</span>
-                        <strong>
-                          {formatEventDateTime(
-                            event.start_datetime
-                          )}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>ENDS</span>
-                        <strong>
-                          {formatEventDateTime(
-                            event.end_datetime
-                          )}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>VENUE</span>
-                        <strong>
-                          {event.venue}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>
-                          REGISTRATION DEADLINE
-                        </span>
-                        <strong>
-                          {formatEventDateTime(
-                            event.registration_deadline
-                          )}
-                        </strong>
-                      </div>
-                    </div>
-                    {/* SEAT AVAILABILITY */}
-                    <div className="event-v2-availability">
-                      <div className="event-v2-seats-heading">
-                        <span>
-                          SEATS RESERVED
-                        </span>
-                        <strong>
-                          {registeredCount ?? "—"}
-                          {" / "}
-                          {capacity}
-                        </strong>
-                      </div>
-                      <div
-                        className="event-v2-seat-track"
-                        role="progressbar"
-                        aria-label="Reserved event seats"
-                        aria-valuemin={0}
-                        aria-valuemax={capacity}
-                        aria-valuenow={
-                          registeredCount ?? 0
-                        }
-                      >
-                        <div
-                          className="event-v2-seat-fill"
-                          style={{
-                            width: `${occupancy}%`,
-                          }}
-                        />
-                      </div>
-                      <p>
-                        {availableSeats !== null
-                          ? `${availableSeats} seats remaining`
-                          : `${capacity} total places`}
-                      </p>
-                    </div>
-                    {/* ERROR */}
-                    {registrationError && (
-                      <div
-                        className="registration-error"
+
+                  {capacity > 0 &&
+                    reserved !== null && (
+                      <progress
+                        value={Math.min(
+                          capacity,
+                          reserved
+                        )}
+                        max={capacity}
+                        aria-label="Seats reserved"
+                      />
+                    )}
+
+                  <p>
+                    {reserved !== null
+                      ? `${reserved} reserved`
+                      : "Availability is confirmed when you register."}
+                  </p>
+                </div>
+
+                {teamEvent ? (
+                  <TeamRegistrationPanel
+                    key={event.id}
+                    event={event}
+                    user={user}
+                    authLoading={authLoading}
+                    onChanged={refreshEvent}
+                  />
+                ) : (
+                  <div className="ed-individual">
+                    {actionError && (
+                      <p
+                        className="ed-error"
                         role="alert"
                       >
-                        {registrationError}
-                      </div>
+                        {actionError}
+                      </p>
                     )}
-                    {/* SUCCESS */}
-                    {registrationSuccess && (
-                      <div
-                        className="registration-success"
+
+                    {notice && (
+                      <p
+                        className="ed-success"
                         role="status"
                       >
-                        <strong>
-                          ✓ You're in!
-                        </strong>
-                        <p>
-                          {registrationSuccess}
-                        </p>
-                      </div>
+                        {notice}
+                      </p>
                     )}
-                    {event.registration_mode === "team" ? (
-                      <TeamRegistrationPanel
-                        key={event.id}
-                        event={event}
-                        user={user}
-                        authLoading={authLoading}
-                        onChanged={async () => {
-                          try {
-                            const updated = await getPublicEvent(event.id);
-                            setEvent(updated);
-                          } catch {
-                            // Team changes already succeeded; counts may be stale.
+
+                    {checking ? (
+                      <p
+                        role="status"
+                        className="ed-muted"
+                      >
+                        Checking your registration…
+                      </p>
+                    ) : check.error ? (
+                      <div role="alert">
+                        <p className="ed-error">
+                          {check.error}
+                        </p>
+
+                        <button
+                          className="ed-button ed-button--light"
+                          onClick={() =>
+                            setCheckRevision(
+                              (value) => value + 1
+                            )
                           }
-                        }}
-                      />
-                    ) : (
-                      <>
-                    {/* REGISTER BUTTON */}
-                    <button
-                      type="button"
-                      className={`event-registration-button event-v2-register-button ${
-                        alreadyRegistered
-                          ? "registration-completed"
-                          : ""
-                      }`}
-                      disabled={registrationDisabled}
-                      onClick={handleRegistration}
-                    >
-                      {getRegistrationButtonText()}
-                    </button>
-                    {/* REGISTRATION INFO */}
-                    {alreadyRegistered ? (
+                        >
+                          Check again
+                        </button>
+                      </div>
+                    ) : registered ? (
                       <Link
+                        className="ed-button ed-wide"
                         to="/my-registrations"
-                        className="registration-manage-link event-v2-manage-link"
                       >
                         View My Registrations →
                       </Link>
-                    ) : (
-                      <p className="event-registration-note">
-                        {isOrganizer
-                          ? "Organizer accounts cannot register as students."
-                          : eventEnded
-                            ? "This event has ended."
-                            : eventStarted
-                              ? "This event has already started."
-                              : registrationClosed
-                                ? "The registration deadline has passed."
-                                : eventFull
-                                  ? "All available places are reserved."
-                                  : !user
-                                    ? "Log in to reserve your place."
-                                    : "Reserve your place before registration closes."}
+                    ) : organiser ? (
+                      <p className="ed-account-note">
+                        Organiser accounts cannot
+                        register as students.
                       </p>
-                    )}
+                    ) : (
+                      <>
+                        <button
+                          className="ed-button ed-wide"
+                          disabled={!open || registering}
+                          onClick={register}
+                        >
+                          {registering
+                            ? "Registering…"
+                            : !open
+                              ? status
+                              : user
+                                ? "Reserve my place →"
+                                : "Log in to register →"}
+                        </button>
+
+                        <p className="ed-muted">
+                          {open
+                            ? "Your digital ticket will be available in My Registrations."
+                            : "Registration is unavailable for this event."}
+                        </p>
                       </>
                     )}
-                    {/* FOOTER NOTE */}
-                    <div className="event-v2-sidebar-footer">
-                      <span aria-hidden="true">
-                        ✳
-                      </span>
-                      <p>
-                        Every great campus memory
-                        starts with showing up.
-                      </p>
-                    </div>
-                  </aside>
-                </div>
-              </>
-            )}
-        </div>
-      </main>
-    </>
+                  </div>
+                )}
+              </aside>
+            </div>
+
+            <footer className="ed-footer">
+              <Link to="/">
+                ← Back to EventHub
+              </Link>
+
+              <strong>
+                Show up. Stand out.
+              </strong>
+            </footer>
+          </>
+        )}
+      </div>
+    </main>
   );
 }

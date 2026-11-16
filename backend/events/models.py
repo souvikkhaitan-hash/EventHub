@@ -438,3 +438,81 @@ class TeamMembership(models.Model):
             f"{self.registration.student.username} "
             f"- {self.team.name} ({self.role})"
         )
+class TeamMembershipHistory(models.Model):
+    """
+    Records a membership when it leaves the active roster.
+
+    This table is historical information only. It must not
+    be used to grant tickets or certificate eligibility.
+    """
+
+    REASON_CHOICES = [
+        ("left", "Student left"),
+        ("withdrawn", "Team withdrawn"),
+    ]
+
+    # Store the original membership ID without a foreign key,
+    # because the active membership will be deleted.
+    source_membership_id = models.PositiveBigIntegerField(
+        unique=True,
+    )
+
+    team = models.ForeignKey(
+        EventTeam,
+        on_delete=models.PROTECT,
+        related_name="membership_history",
+    )
+
+    registration = models.ForeignKey(
+        Registration,
+        on_delete=models.PROTECT,
+        related_name="team_membership_history",
+    )
+
+    role = models.CharField(
+        max_length=20,
+        choices=TeamMembership.ROLE_CHOICES,
+    )
+
+    joined_at = models.DateTimeField()
+
+    ended_at = models.DateTimeField(
+        default=timezone.now,
+    )
+
+    reason = models.CharField(
+        max_length=20,
+        choices=REASON_CHOICES,
+    )
+
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="team_membership_history_actions",
+    )
+
+    class Meta:
+        ordering = ["-ended_at", "-id"]
+
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(role__in=["leader", "member"]),
+                name="team_history_valid_role",
+            ),
+            models.CheckConstraint(
+                condition=Q(reason__in=["left", "withdrawn"]),
+                name="team_history_valid_reason",
+            ),
+            models.CheckConstraint(
+                condition=Q(ended_at__gte=F("joined_at")),
+                name="team_history_valid_dates",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"Registration {self.registration_id} "
+            f"- Team {self.team_id} ({self.reason})"
+        )
