@@ -1,24 +1,19 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "https://eventhub-backend-u04u.onrender.com/api/:path*"
+      "src": "/api/(.*)",
+      "dest": "https://eventhub-backend-u04u.onrender.com/api/$1",
+      "headers": {
+        "Cache-Control": "private, no-store"
+      }
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
-  "headers": [
+      "handle": "filesystem"
+    },
     {
-      "source": "/api/:path*",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "private, no-store"
-        }
-      ]
+      "src": "/.*",
+      "dest": "/index.html"
     }
   ]
 }
