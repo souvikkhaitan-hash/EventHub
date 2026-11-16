@@ -3,9 +3,12 @@
 // React + Django REST Framework
 // ============================================================
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
+const API_BASE = import.meta.env.PROD
+  ? window.location.origin
+  : (
+      import.meta.env.VITE_API_BASE_URL ||
+      "http://localhost:8000"
+    );
 // Django CSRF endpoint
 const CSRF_URL = `${API_BASE}/api/auth/csrf/`;
 

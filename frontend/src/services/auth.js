@@ -1,5 +1,11 @@
-const API_URL = "http://localhost:8000/api/auth";
+const API_BASE = import.meta.env.PROD
+  ? window.location.origin
+  : (
+      import.meta.env.VITE_API_BASE_URL ||
+      "http://localhost:8000"
+    );
 
+const API_URL = `${API_BASE}/api/auth`;
 async function getCsrfToken() {
   const response = await fetch(`${API_URL}/csrf/`, {
     credentials: "include",
