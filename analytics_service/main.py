@@ -58,6 +58,7 @@ DB_CONFIG = {
     "port": int(os.getenv("ANALYTICS_DB_PORT", "5432")),
     "connect_timeout": 5,
     "options": "-c default_transaction_read_only=on",
+    "sslmode": os.getenv("ANALYTICS_DB_SSLMODE", "prefer"),
 }
 
 
