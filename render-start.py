@@ -1,5 +1,5 @@
 """
-Run public Django and private FastAPI analytics on Render.
+Run Django, private FastAPI analytics and background jobs on Render.
 """
 
 import os
@@ -32,10 +32,19 @@ def launch(args, directory):
     return child
 
 
+def signal_child(child, signal_number):
+    if child.poll() is not None:
+        return
+
+    try:
+        os.killpg(child.pid, signal_number)
+    except ProcessLookupError:
+        pass
+
+
 def cleanup():
     for child in children:
-        if child.poll() is None:
-            os.killpg(child.pid, signal.SIGTERM)
+        signal_child(child, signal.SIGTERM)
 
     deadline = time.monotonic() + 30
 
@@ -48,8 +57,25 @@ def cleanup():
                 )
             )
         except subprocess.TimeoutExpired:
-            os.killpg(child.pid, signal.SIGKILL)
+            signal_child(child, signal.SIGKILL)
             child.wait()
+
+
+def run_setup(args):
+    child = launch(args, "backend")
+
+    while child.poll() is None and not stopping:
+        time.sleep(0.2)
+
+    if stopping:
+        return False
+
+    if child.returncode != 0:
+        raise RuntimeError(
+            f"Setup command failed: {' '.join(args)}"
+        )
+
+    return True
 
 
 def main():
@@ -57,90 +83,99 @@ def main():
     signal.signal(signal.SIGINT, stop)
 
     try:
-        migration = launch(
-            ["manage.py", "migrate", "--noinput"],
-            "backend",
-        )
-
-        while migration.poll() is None and not stopping:
-            time.sleep(0.2)
-
-        if stopping:
+        if not run_setup(
+            ["manage.py", "migrate", "--noinput"]
+        ):
             return 0
 
-        if migration.returncode != 0:
-            return 1
+        # Database cache tables are created separately from migrations.
+        # This command skips tables that already exist.
+        if not run_setup(
+            ["manage.py", "createcachetable"]
+        ):
+            return 0
 
-        subprocess.run(
-            [
-                sys.executable,
-                "manage.py",
-                "createcachetable",
-                "--noinput",
-            ],
-            cwd=ROOT / "backend",
-            check=True,
-        )
+        services = [
+            (
+                "FastAPI analytics",
+                launch(
+                    [
+                        "-m",
+                        "uvicorn",
+                        "main:app",
+                        "--host",
+                        "127.0.0.1",
+                        "--port",
+                        "8001",
+                        "--workers",
+                        "1",
+                    ],
+                    "analytics_service",
+                ),
+            ),
+            (
+                "Django API",
+                launch(
+                    [
+                        "-m",
+                        "gunicorn",
+                        "config.wsgi:application",
+                        "--bind",
+                        "0.0.0.0:" + os.getenv("PORT", "10000"),
+                        "--workers",
+                        "1",
+                        "--threads",
+                        "2",
+                        "--timeout",
+                        "120",
+                        "--access-logfile",
+                        "-",
+                        "--error-logfile",
+                        "-",
+                    ],
+                    "backend",
+                ),
+            ),
+            (
+                "Background jobs",
+                launch(
+                    [
+                        "manage.py",
+                        "process_eventhub_jobs",
+                        "--watch",
+                    ],
+                    "backend",
+                ),
+            ),
+        ]
 
-        launch(
-            [
-                "-m",
-                "uvicorn",
-                "main:app",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                "8001",
-                "--workers",
-                "1",
-            ],
-            "analytics_service",
-        )
-
-        launch(
-            [
-                "-m",
-                "gunicorn",
-                "config.wsgi:application",
-                "--bind",
-                "0.0.0.0:" + os.getenv("PORT", "10000"),
-                "--workers",
-                "1",
-                "--threads",
-                "2",
-                "--timeout",
-                "120",
-                "--access-logfile",
-                "-",
-                "--error-logfile",
-                "-",
-            ],
-            "backend",
-        )
-
-        launch(
-            [
-                "manage.py",
-                "process_eventhub_jobs",
-                "--watch",
-            ],
-            "backend",
-        )
+        for name, child in services:
+            print(
+                f"Started {name} with PID {child.pid}.",
+                flush=True,
+            )
 
         while not stopping:
-            if any(
-                child.poll() is not None
-                for child in children[1:]
-            ):
-                print(
-                    "A server stopped; shutting down both services.",
-                    flush=True,
-                )
-                return 1
+            for name, child in services:
+                if child.poll() is not None:
+                    print(
+                        f"{name} exited with code "
+                        f"{child.returncode}; stopping all services.",
+                        flush=True,
+                    )
+                    return 1
 
             time.sleep(0.5)
 
         return 0
+
+    except Exception as error:
+        print(
+            f"Startup failed: {error}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 1
 
     finally:
         cleanup()
