@@ -668,3 +668,38 @@
     transform: none;
   }
 }
+.tp-manual-code {
+  width: 100%;
+  min-width: 0;
+  margin-block: 20px;
+  padding: 16px;
+  border: 1px solid #dfe4ee;
+  border-radius: 12px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.tp-manual-code h4 {
+  margin: 0 0 8px;
+}
+
+.tp-manual-code p {
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.tp-manual-code code {
+  display: block;
+  margin-block: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f3f5fa;
+  color: #17213a;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.tp-manual-code button {
+  width: 100%;
+}

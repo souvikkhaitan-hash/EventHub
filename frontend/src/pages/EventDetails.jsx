@@ -23,6 +23,7 @@ import {
 } from "../utils/eventFormat";
 
 import "../styles/event-details-editorial.css";
+import EventCommunication from "../components/EventCommunication";
 
 // Convert a date into the UTC format used by calendar files.
 function calendarDate(value) {
@@ -853,6 +854,7 @@ function EventDetailsContent({
                 )}
               </aside>
             </div>
+            <EventCommunication eventId={event.id} />
 
             <footer className="ed-footer">
               <Link to="/">

@@ -733,3 +733,195 @@ export function generateAwardRecipientPreview(
     "blob"
   );
 }
+
+// ============================================================
+// EVENT STAFF
+// ============================================================
+
+export function getMyEventAccess(eventId) {
+  return apiRequest(
+    `/api/events/manage/${encodeURIComponent(eventId)}/my-access/`
+  );
+}
+
+export function getEventStaff(eventId) {
+  return apiRequest(
+    `/api/events/manage/${encodeURIComponent(eventId)}/staff/`
+  );
+}
+
+export function addEventStaff(eventId, data) {
+  return apiRequest(
+    `/api/events/manage/${encodeURIComponent(eventId)}/staff/`,
+    "POST",
+    data
+  );
+}
+
+export function updateEventStaff(eventId, membershipId, data) {
+  return apiRequest(
+    `/api/events/manage/${encodeURIComponent(eventId)}/staff/${encodeURIComponent(membershipId)}/`,
+    "PATCH",
+    data
+  );
+}
+
+export function lookupAttendanceParticipant(
+  eventId,
+  kind,
+  query,
+  signal
+) {
+  const parameters = new URLSearchParams({
+    kind,
+    query: query.trim(),
+  });
+
+  return apiRequest(
+    `/api/events/manage/${encodeURIComponent(eventId)}/attendance-lookup/?${parameters}`,
+    "GET",
+    null,
+    "json",
+    signal
+  );
+}
+
+export function checkInRegisteredStudent(eventId, registrationId) {
+  return apiRequest(
+    `/api/events/manage/${encodeURIComponent(eventId)}/check-in/`,
+    "POST",
+    { registration_id: registrationId }
+  );
+}
+
+export async function downloadAttendanceExport(
+  eventId,
+  report = "attendance",
+  fileType = "xlsx"
+) {
+  const query = new URLSearchParams({
+    report,
+    file_type: fileType,
+  });
+
+  const expectedType =
+    fileType === "xlsx"
+      ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      : "text/csv";
+
+  const response = await fetch(
+    `${API_BASE}/api/events/manage/${encodeURIComponent(eventId)}/attendance-export/?${query}`,
+    {
+      credentials: "include",
+        headers: {
+        Accept: "*/*",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    return readResponse(response);
+  }
+
+  const contentType =
+    response.headers.get("content-type") || "";
+
+  if (!contentType.includes(expectedType)) {
+    throw new Error(
+      "The server returned an unexpected export format."
+    );
+  }
+
+  return response.blob();
+}
+
+export async function downloadEventReference(eventId) {
+  const response = await fetch(
+    `${API_BASE}/api/events/manage/${encodeURIComponent(eventId)}/reference-download/`,
+    {
+      credentials: "include",
+      headers: {
+        Accept: "*/*",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    return readResponse(response);
+  }
+
+  const contentType =
+    response.headers.get("content-type") || "";
+
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      "The server returned an unexpected reference format."
+    );
+  }
+
+  return response.blob();
+}
+// Append to your existing frontend/src/services/events.js, below the certificate workflow additions.
+export function getEventHubNotifications(page=1, signal) {
+  return apiRequest(`/api/notifications/?page=${encodeURIComponent(page)}`,"GET",null,"json",signal);
+}
+export function markEventHubNotificationRead(id) {
+  return apiRequest(`/api/notifications/${encodeURIComponent(id)}/read/`,"POST",{});
+}
+export function markAllEventHubNotificationsRead() {
+  return apiRequest("/api/notifications/","POST",{action:"read_all"});
+}
+export function getEventHubNotificationPreferences() { return apiRequest("/api/notifications/preferences/"); }
+export function updateEventHubNotificationPreferences(data) { return apiRequest("/api/notifications/preferences/","PATCH",data); }
+export function getEventHubNotificationConfig() { return apiRequest("/api/notifications/config/"); }
+export function registerEventHubPush(data) { return apiRequest("/api/notifications/subscriptions/","POST",data); }
+export function getEventHubPushStatus(hash) { return apiRequest(`/api/notifications/subscriptions/?endpoint_hash=${encodeURIComponent(hash)}`); }
+export function deleteEventHubPush(endpoint) { return apiRequest("/api/notifications/subscriptions/","DELETE",{endpoint}); }
+export function connectEventHubWhatsApp(phone) { return apiRequest("/api/notifications/whatsapp/connect/","POST",{phone,consent:true}); }
+export function disconnectEventHubWhatsApp() { return apiRequest("/api/notifications/whatsapp/connect/","DELETE",{}); }
+
+// Append to frontend/src/services/events.js. Keep the existing apiRequest helper.
+
+export function getCertificateWorkflowReview(eventId, versionId, signal) {
+  return apiRequest(
+    `/api/certificates/events/${encodeURIComponent(eventId)}/workflow-review/?template_version_id=${encodeURIComponent(versionId)}`,
+    "GET", null, "json", signal
+  );
+}
+
+export function getCertificateWorkflows(eventId, signal) {
+  return apiRequest(`/api/certificates/events/${encodeURIComponent(eventId)}/workflows/`, "GET", null, "json", signal);
+}
+
+export function createCertificateWorkflow(eventId, payload) {
+  return apiRequest(`/api/certificates/events/${encodeURIComponent(eventId)}/workflows/`, "POST", payload);
+}
+
+export function getCertificateWorkflow(workflowId, signal) {
+  return apiRequest(`/api/certificates/workflows/${encodeURIComponent(workflowId)}/`, "GET", null, "json", signal);
+}
+
+export function changeCertificateWorkflow(workflowId, payload) {
+  return apiRequest(`/api/certificates/workflows/${encodeURIComponent(workflowId)}/`, "POST", payload);
+}
+// Append to your existing frontend/src/services/events.js.
+export function getEventCommunication(eventId, options = {}, signal) {
+  const query = new URLSearchParams({
+    tab: options.tab || "announcements", page: String(options.page || 1),
+    manage: options.manage ? "1" : "0", search: options.search || "",
+    unanswered: options.unanswered ? "1" : "0",
+  });
+  return apiRequest(`/api/communication/events/${encodeURIComponent(eventId)}/?${query}`, "GET", null, "json", signal);
+}
+export function createEventAnnouncement(eventId, payload) {
+  return apiRequest(`/api/communication/events/${encodeURIComponent(eventId)}/announcements/`, "POST", payload);
+}
+export function changeEventAnnouncement(eventId, itemId, payload) {
+  return apiRequest(`/api/communication/events/${encodeURIComponent(eventId)}/announcements/${encodeURIComponent(itemId)}/`, "POST", payload);
+}
+export function createEventQuestion(eventId, payload) {
+  return apiRequest(`/api/communication/events/${encodeURIComponent(eventId)}/questions/`, "POST", payload);
+}
+export function changeEventQuestion(eventId, itemId, payload) {
+  return apiRequest(`/api/communication/events/${encodeURIComponent(eventId)}/questions/${encodeURIComponent(itemId)}/`, "POST", payload);
+}

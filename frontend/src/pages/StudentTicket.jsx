@@ -32,7 +32,43 @@ function messageFrom(error) {
     "Unable to retrieve your ticket."
   );
 }
+function TicketEntryCode({ token }) {
+  const [copyMessage, setCopyMessage] = useState("");
 
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopyMessage("Ticket code copied.");
+    } catch {
+      setCopyMessage(
+        "Select the code below and copy it manually."
+      );
+    }
+  }
+
+  return (
+    <section className="tp-manual-code">
+      <h4>Manual entry code</h4>
+
+      <p>
+        If the QR cannot be scanned, show this complete code
+        to authorized event staff.
+      </p>
+
+      <code>{token}</code>
+
+      <button
+        type="button"
+        className="tp-button tp-button--outline"
+        onClick={copyCode}
+      >
+        Copy code
+      </button>
+
+      <p role="status">{copyMessage}</p>
+    </section>
+  );
+}
 export default function StudentTicket() {
   const { registrationId } = useParams();
   const { user, loading } = useAuth();
@@ -371,6 +407,10 @@ function TicketContent({
                   Present this code to the organiser
                   at the entrance.
                 </p>
+                <TicketEntryCode
+                  key={ticket.token}
+                  token={ticket.token}
+                />
 
                 <div
                   className={`tp-attendance ${

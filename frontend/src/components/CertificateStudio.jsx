@@ -90,10 +90,10 @@ export function CertificateStudioNav() {
   const studio = useCertificateStudio();
 
   const tabs = [
-    ["design", "Design template"],
-    ["recipients", "Participants & awards"],
-    ["batches", "Saved batches"],
-  ];
+  ["design", "Design template"],
+  ["recipients", "Generate & publish"],
+  ["batches", "Batch history"],
+ ];
 
   function keyboardNavigation(event) {
     if (

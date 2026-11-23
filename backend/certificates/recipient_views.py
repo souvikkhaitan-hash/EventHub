@@ -12,7 +12,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from events.models import Event
-from events.permissions import IsOrganizer
+from .permissions import (
+    CanManageCertificates,
+    certificate_event,
+    certificate_event_ids,
+)
 
 from .recipient_services import (
     certificate_registrations,
@@ -52,14 +56,10 @@ class RecipientPagination(PageNumberPagination):
 
 
 class EventCertificateRecipientsView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
 
     def get(self, request, event_id):
-        event = get_object_or_404(
-            Event,
-            id=event_id,
-            organizer=request.user,
-        )
+        event = certificate_event(request.user, event_id)
 
         query = RecipientSearchSerializer(
             data=request.query_params
@@ -103,7 +103,7 @@ class EventCertificateRecipientsView(APIView):
 
 @method_decorator(csrf_protect, name="dispatch")
 class CertificateRecipientPreviewView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
     parser_classes = [JSONParser]
 
     def post(self, request, version_id):

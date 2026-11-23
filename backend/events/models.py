@@ -516,3 +516,120 @@ class TeamMembershipHistory(models.Model):
             f"Registration {self.registration_id} "
             f"- Team {self.team_id} ({self.reason})"
         )
+
+class EventStaffMembership(models.Model):
+    """
+    People helping operate an event.
+
+    Separate from EventTeam and TeamMembership,
+    which represent participating student teams.
+    """
+
+    class Role(models.TextChoices):
+        MANAGER = "manager", "Event manager"
+        ATTENDANCE = "attendance", "Attendance volunteer"
+        CERTIFICATES = "certificates", "Certificate coordinator"
+
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.PROTECT,
+        related_name="staff_memberships",
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="event_staff_memberships",
+    )
+
+    role = models.CharField(
+        max_length=20,
+        choices=Role.choices,
+    )
+
+    is_active = models.BooleanField(default=True)
+    revision = models.PositiveIntegerField(default=1)
+
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_event_staff",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event", "user"],
+                name="unique_event_staff_user",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    role__in=[
+                        "manager",
+                        "attendance",
+                        "certificates",
+                    ]
+                ),
+                name="event_staff_valid_role",
+            ),
+            models.CheckConstraint(
+                condition=Q(revision__gte=1),
+                name="event_staff_positive_revision",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"Event {self.event_id}: "
+            f"{self.user.username} ({self.role})"
+        )
+
+
+class EventStaffHistory(models.Model):
+    class Action(models.TextChoices):
+        ASSIGNED = "assigned", "Assigned"
+        UPDATED = "updated", "Updated"
+        REVOKED = "revoked", "Access removed"
+        REACTIVATED = "reactivated", "Access restored"
+
+    membership = models.ForeignKey(
+        EventStaffMembership,
+        on_delete=models.PROTECT,
+        related_name="history",
+    )
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="event_staff_changes",
+    )
+
+    action = models.CharField(
+        max_length=20,
+        choices=Action.choices,
+    )
+
+    revision = models.PositiveIntegerField()
+    previous_role = models.CharField(max_length=20, blank=True)
+    role = models.CharField(max_length=20)
+    is_active = models.BooleanField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["membership", "revision"],
+                name="unique_event_staff_history_revision",
+            ),
+        ]

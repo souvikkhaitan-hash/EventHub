@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include,path
 
 from .views import (
     EventCertificateTemplatesView,
@@ -136,4 +136,5 @@ urlpatterns = [
         AwardRecipientPreviewView.as_view(),
         name="award-recipient-preview",
     ),
+    path("", include("certificates.workflow_urls")),
 ]

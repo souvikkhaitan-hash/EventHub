@@ -25,6 +25,8 @@ from .models import (
 from .recipient_services import certificate_registrations
 from .serializers import PositionedFieldSerializer
 from .services import render_sample_pdf
+from .permissions import certificate_event
+from .batch_names import resolve_batch_names
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +48,7 @@ def batch_request_hash(data):
             [
                 {
                     "registration_id": item["registration_id"],
-                    "participant_name": item["participant_name"],
+                    "participant_name": item.get("participant_name"),
                 }
                 for item in data["recipients"]
             ],
@@ -76,10 +78,10 @@ def create_draft_batch(user, event_id, data):
 
     try:
         with transaction.atomic():
-            event = get_object_or_404(
-                Event.objects.select_for_update(),
-                id=event_id,
-                organizer=user,
+            event = certificate_event(
+                user,
+                event_id,
+                lock=True,
             )
 
             existing = CertificateBatch.objects.filter(
@@ -134,25 +136,37 @@ def create_draft_batch(user, event_id, data):
                     )
                 })
 
-            names = {
-                item["registration_id"]: item["participant_name"]
+            registration_ids = [
+                item["registration_id"]
                 for item in data["recipients"]
-            }
+            ]
+
+            if len(registration_ids) != len(set(registration_ids)):
+                raise ValidationError({
+                    "recipients": (
+                        "Select each participant only once."
+                    )
+                })
 
             registrations = list(
                 certificate_registrations(event)
-                .filter(id__in=names)
+                .filter(id__in=registration_ids)
                 .select_for_update(of=("self",))
                 .order_by("id")
             )
 
-            if len(registrations) != len(names):
+            if len(registrations) != len(registration_ids):
                 raise ValidationError({
                     "recipients": (
                         "One or more participants are unavailable "
                         "for this event."
                     )
                 })
+
+            names = resolve_batch_names(
+                registrations,
+                data["recipients"],
+            )
 
             now = timezone.now()
             eligibility_errors = {}

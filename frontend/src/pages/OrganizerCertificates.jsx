@@ -26,6 +26,7 @@ import {
 
 import "../styles/certificates.css";
 import "../styles/certificate-studio.css";
+import { useEventAccess } from "../components/EventAccessGate";
 
 const PLACEHOLDERS = [
   "participant_name",
@@ -187,6 +188,8 @@ function SelectControl({
 }
 
 function CertificateEditor({ eventId }) {
+  const access = useEventAccess();
+  const isEventOwner = access?.role === "owner";
   const [event, setEvent] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [version, setVersion] = useState(null);
@@ -756,14 +759,14 @@ function CertificateEditor({ eventId }) {
     >
       <Link
         className="organizer-back-link"
-        to={`/organizer/events/${eventId}/participants`}
+        to={`/organizer/events/${eventId}/workspace`}
         onClick={(clickEvent) => {
           if (busy || !confirmDiscard()) {
             clickEvent.preventDefault();
           }
         }}
       >
-        ← Back to participants
+        ← Event workspace
       </Link>
 
       <header className="cert-header">
@@ -779,10 +782,22 @@ function CertificateEditor({ eventId }) {
           <p>{event.title}</p>
         </div>
 
-        <span className="cert-badge">
-          Templates & issuing
+          <span className="cert-badge">
+          {isEventOwner
+            ? "Templates & issuing"
+            : "Certificate preparation"}
         </span>
       </header>
+
+            {!isEventOwner && (
+        <div className="cert-message" role="note">
+          You are preparing certificates as this event’s
+          certificate coordinator. You can upload artwork,
+          save layouts, preview certificates and generate
+          participation drafts. The event owner handles
+          publication, revocation and award decisions.
+        </div>
+      )}
 
       <CertificateStudioNav />
 

@@ -5,7 +5,11 @@ from django.db import models
 from django.db.models import Q
 
 from .storage import PrivateCertificateStorage
-
+from .workflow_models import (
+    CertificateWorkflow,
+    CertificateWorkflowBatch,
+    CertificateWorkflowRecipient,
+)
 
 def background_upload_path(instance, filename):
     # Never use an uploaded filename as a storage path.

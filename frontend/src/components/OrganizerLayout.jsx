@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-
 import {
   Link,
   NavLink,
@@ -8,61 +7,74 @@ import {
   useLocation,
 } from "react-router";
 
-import { getCurrentUser } from "../services/events";
+import { useAuth } from "../context/AuthContext";
+import { getOrganizerEvents } from "../services/events";
 
 import "../styles/organizer.css";
 import "../styles/organizer-v2.css";
+import "../styles/event-staff.css";
 
 export default function OrganizerLayout() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const [menuOpen, setMenuOpen] = useState(false);
-
+  const { user, loading } = useAuth();
   const location = useLocation();
 
-  // ==========================================
-  // VERIFY ORGANIZER
-  // ==========================================
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [access, setAccess] = useState({
+    userId: null,
+    status: "loading",
+    message: "",
+  });
 
   useEffect(() => {
+    if (!user || user.is_organizer) return;
+
     let active = true;
 
-    async function checkOrganizer() {
-      try {
-        const currentUser = await getCurrentUser();
+    setAccess({
+      userId: user.id,
+      status: "loading",
+      message: "",
+    });
+
+    getOrganizerEvents()
+      .then((events) => {
+        if (!Array.isArray(events)) {
+          throw new Error(
+            "The server returned an unexpected workspace response."
+          );
+        }
 
         if (active) {
-          setUser(currentUser);
+          setAccess({
+            userId: user.id,
+            status: events.length ? "allowed" : "denied",
+            message: "",
+          });
         }
-      } catch (err) {
-        if (active) {
-          setError(err.message);
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
+      })
+      .catch((error) => {
+        if (!active) return;
 
-    checkOrganizer();
+        const denied = [401, 403, 404].includes(error.status);
+
+        setAccess({
+          userId: user.id,
+          status: denied ? "denied" : "error",
+          message: denied
+            ? "You do not currently have an event staff assignment."
+            : error.message || "Unable to load your workspace.",
+        });
+      });
 
     return () => {
       active = false;
     };
-  }, []);
-
-  // ==========================================
-  // CLOSE MOBILE MENU ON NAVIGATION
-  // ==========================================
+  }, [user?.id, user?.is_organizer, retry]);
 
   useEffect(() => {
     setMenuOpen(false);
-  }, [location.pathname]);
-
-  // Close menu using Escape key.
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -70,144 +82,125 @@ export default function OrganizerLayout() {
     function handleEscape(event) {
       if (event.key === "Escape") {
         setMenuOpen(false);
+        document.getElementById("workspace-menu-toggle")?.focus();
       }
     }
 
     document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener(
-        "keydown",
-        handleEscape
-      );
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [menuOpen]);
 
-  // ==========================================
-  // LOADING
-  // ==========================================
-
   if (loading) {
     return (
-      <div
-        className="organizer-loading"
-        role="status"
-      >
+      <div className="organizer-loading" role="status">
         Loading your workspace...
       </div>
     );
   }
 
-  // ==========================================
-  // AUTHENTICATION
-  // ==========================================
-
-  if (!user && !error) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!user && error) {
+  if (
+    !user.is_organizer &&
+    (access.userId !== user.id || access.status === "loading")
+  ) {
     return (
-      <div className="organizer-access-message">
-        <h2>Unable to load your workspace</h2>
-
-        <p>{error}</p>
-
-        <Link to="/">
-          Back to home
-        </Link>
+      <div className="organizer-loading" role="status">
+        Checking your event assignments...
       </div>
     );
   }
 
-  if (!user.is_organizer) {
+  if (!user.is_organizer && access.status !== "allowed") {
     return (
       <div className="organizer-access-message">
-        <h2>Organizer access required</h2>
+        <h2>
+          {access.status === "error"
+            ? "Unable to load your workspace"
+            : "No event assignment"}
+        </h2>
 
         <p>
-          This workspace is available only to
-          approved EventHub organizers.
+          {access.message ||
+            "Ask an event owner to add your username to their event staff."}
         </p>
 
-        <Link to="/">
-          Return to EventHub
-        </Link>
+        <button
+          type="button"
+          onClick={() => setRetry((value) => value + 1)}
+        >
+          Check again
+        </button>
+
+        <p>
+          <Link to="/">Return to EventHub</Link>
+        </p>
       </div>
     );
   }
-
-  // ==========================================
-  // NAVIGATION
-  // ==========================================
 
   const navigationItems = [
     {
       to: "/organizer",
-      label: "Overview",
+      label: user.is_organizer ? "Overview" : "My events",
       icon: "▦",
       end: true,
     },
     {
-      to: "/organizer/events/new",
-      label: "Create Event",
-      icon: "＋",
+      to: "/organizer/workspace",
+      label: "Event access",
+      icon: "◇",
       end: false,
     },
-    {
-      to: "/organizer/analytics",
-      label: "Analytics",
-      icon: "▥",
-      end: false,
-    },
+    ...(user.is_organizer
+      ? [
+          {
+            to: "/organizer/events/new",
+            label: "Create Event",
+            icon: "＋",
+            end: false,
+          },
+          {
+            to: "/organizer/analytics",
+            label: "Analytics",
+            icon: "▥",
+            end: false,
+          },
+        ]
+      : []),
   ];
 
   return (
     <div className="organizer-app organizer-v2-layout">
-
-      {/* ======================================
-          MOBILE HEADER
-      ====================================== */}
-
       <header className="org-mobile-header">
-
         <Link
           to="/organizer"
           className="org-mobile-brand"
           onClick={() => setMenuOpen(false)}
         >
-          <img
-            src="/eventhub-logo.svg"
-            alt=""
-          />
-
+          <img src="/eventhub-logo.svg" alt="" />
           <strong>EventHub</strong>
         </Link>
 
         <button
+          id="workspace-menu-toggle"
           type="button"
           className="org-mobile-menu-button"
-          aria-label={
-            menuOpen
-              ? "Close organizer menu"
-              : "Open organizer menu"
-          }
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
           aria-expanded={menuOpen}
           aria-controls="organizer-sidebar"
-          onClick={() => {
-            setMenuOpen((previous) => !previous);
-          }}
+          onClick={() => setMenuOpen((value) => !value)}
         >
-          <span className="org-menu-line" />
-          <span className="org-menu-line" />
-          <span className="org-menu-line" />
+          <span className="org-menu-line" aria-hidden="true" />
+          <span className="org-menu-line" aria-hidden="true" />
+          <span className="org-menu-line" aria-hidden="true" />
         </button>
-
       </header>
-
-      {/* ======================================
-          MOBILE BACKDROP
-      ====================================== */}
 
       {menuOpen && (
         <button
@@ -218,37 +211,24 @@ export default function OrganizerLayout() {
         />
       )}
 
-      {/* ======================================
-          SIDEBAR
-      ====================================== */}
-
       <aside
         id="organizer-sidebar"
         className={`organizer-sidebar ${
           menuOpen ? "org-sidebar-open" : ""
         }`}
       >
-
-        <Link
-          to="/organizer"
-          className="organizer-brand"
-          onClick={() => setMenuOpen(false)}
-        >
-          <img
-            src="/eventhub-logo.svg"
-            alt=""
-          />
-
+        <Link to="/organizer" className="organizer-brand">
+          <img src="/eventhub-logo.svg" alt="" />
           <span>EventHub</span>
         </Link>
 
         <div className="organizer-workspace-label">
-          ORGANIZER WORKSPACE
+          EVENT WORKSPACE
         </div>
 
         <nav
           className="organizer-navigation"
-          aria-label="Organizer navigation"
+          aria-label="Event workspace navigation"
         >
           {navigationItems.map((item) => (
             <NavLink
@@ -257,67 +237,46 @@ export default function OrganizerLayout() {
               end={item.end}
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
-                isActive
-                  ? "organizer-nav-active"
-                  : ""
+                isActive ? "organizer-nav-active" : ""
               }
             >
-              <span aria-hidden="true">
-                {item.icon}
-              </span>
-
+              <span aria-hidden="true">{item.icon}</span>
               {item.label}
             </NavLink>
           ))}
         </nav>
 
         <div className="organizer-sidebar-bottom">
-
-          <Link
-            to="/"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link to="/" onClick={() => setMenuOpen(false)}>
             ← Back to EventHub
           </Link>
-
         </div>
-
       </aside>
 
-      {/* ======================================
-          CONTENT
-      ====================================== */}
-
       <div className="organizer-content">
-
         <header className="organizer-topbar">
-
           <span className="organizer-topbar-label">
             EVENT MANAGEMENT
           </span>
 
           <div className="organizer-profile">
-
             <span className="organizer-profile-avatar">
               {user.username.charAt(0).toUpperCase()}
             </span>
 
             <div>
               <strong>{user.username}</strong>
-
-              <span>Organizer</span>
+              <span>
+                {user.is_organizer ? "Organizer" : "Event staff"}
+              </span>
             </div>
-
           </div>
-
         </header>
 
         <main className="organizer-main">
           <Outlet context={{ user }} />
         </main>
-
       </div>
-
     </div>
   );
 }

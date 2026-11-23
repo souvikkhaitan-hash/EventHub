@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useEventAccess } from "./EventAccessGate";
 import PublishCertificateBatch from "./PublishCertificateBatch";
 import CertificateRevocation from "./CertificateRevocation";
 import { useCertificateStudio } from "./CertificateStudio";
@@ -10,6 +11,10 @@ import {
   getCertificateBatches,
   getGeneratedCertificateDocument,
 } from "../services/events";
+
+import "../styles/certificate-batches.css";
+
+const BATCH_LIMIT = 50;
 
 function formatDate(value) {
   if (!value || Number.isNaN(new Date(value).getTime())) {
@@ -38,6 +43,9 @@ export default function CertificateBatches({
   onClear,
   onGenerated,
 }) {
+  const access = useEventAccess();
+  const isEventOwner = access?.role === "owner";
+
   const studio = useCertificateStudio();
   const studioBatch = studio?.batch;
   const historyRevision = studio?.historyRevision;
@@ -58,19 +66,38 @@ export default function CertificateBatches({
   const [error, setError] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewName, setPreviewName] = useState("");
+  const [namesExpanded, setNamesExpanded] = useState(false);
 
   const aliveRef = useRef(false);
   const generationRef = useRef(null);
+  const generatingRef = useRef(false);
 
   const loading = result.request !== request;
   const data = loading ? null : result.data;
   const batches = data?.results || [];
 
-  const invalidNames = recipients.some((recipient) => {
-    const length = recipient.participant_name.trim().length;
-    return length === 0 || length > 200;
-  });
+  const invalidNameCount = recipients.filter((recipient) => {
+    const name = recipient.participant_name;
 
+    return (
+      typeof name !== "string" ||
+      !name.trim() ||
+      name.trim().length > 200
+    );
+  }).length;
+
+  const invalidNames = invalidNameCount > 0;
+  const namesVisible = invalidNames || namesExpanded;
+
+  const cannotGenerate =
+    busy ||
+    dirty ||
+    !versionId ||
+    recipients.length === 0 ||
+    recipients.length > BATCH_LIMIT ||
+    invalidNames;
+
+  // Track whether asynchronous results can still update this screen.
   useEffect(() => {
     aliveRef.current = true;
 
@@ -79,25 +106,26 @@ export default function CertificateBatches({
     };
   }, []);
 
+  // Open the newly generated batch in the history screen.
+  useEffect(() => {
+    if (!historyOnly || !studioBatch) return;
+
+    setBatch(studioBatch);
+    setPreviewUrl("");
+    setPreviewName("");
+  }, [historyOnly, studioBatch]);
+
+  // Refresh history when the studio records a batch change.
   useEffect(() => {
     if (!historyOnly) return;
 
-    if (studioBatch) {
-      setBatch(studioBatch);
-      setPreviewUrl("");
-      setPreviewName("");
-    }
-  }, [historyOnly, studioBatch]);
-
-  useEffect(() => {
-    if (historyOnly) {
-      setRequest((previous) => ({
-        page: 1,
-        revision: previous.revision + 1,
-      }));
-    }
+    setRequest((previous) => ({
+      page: 1,
+      revision: previous.revision + 1,
+    }));
   }, [historyOnly, historyRevision]);
 
+  // Load paginated batch history.
   useEffect(() => {
     if (generationOnly) return;
 
@@ -136,6 +164,7 @@ export default function CertificateBatches({
     };
   }, [eventId, request, generationOnly]);
 
+  // Release PDF preview URLs after replacement or unmounting.
   useEffect(() => {
     return () => {
       if (previewUrl) {
@@ -157,37 +186,31 @@ export default function CertificateBatches({
   }
 
   function generate() {
-    if (
-      busy ||
-      dirty ||
-      recipients.length === 0 ||
-      recipients.length > 50 ||
-      invalidNames
-    ) {
+    if (cannotGenerate || generatingRef.current) {
       return;
     }
 
     const basePayload = {
       template_version_id: versionId,
+
       ...(awardResult
         ? { award_result_id: awardResult.id }
         : {}),
+
       recipients: [...recipients]
         .sort(
           (first, second) =>
-            first.registration_id -
-            second.registration_id
+            first.registration_id - second.registration_id
         )
         .map((recipient) => ({
           registration_id: recipient.registration_id,
-          participant_name:
-            recipient.participant_name.trim(),
+          participant_name: recipient.participant_name.trim(),
         })),
     };
 
     const signature = JSON.stringify(basePayload);
 
-    // Reuse the request key when retrying the same batch.
+    // Retain the same request key when retrying an unchanged request.
     if (generationRef.current?.signature !== signature) {
       generationRef.current = {
         signature,
@@ -200,6 +223,7 @@ export default function CertificateBatches({
 
     const payload = generationRef.current.payload;
 
+    generatingRef.current = true;
     setError("");
 
     runOperation(async () => {
@@ -217,9 +241,9 @@ export default function CertificateBatches({
         generationRef.current = null;
 
         refreshBatches(1);
+        setNamesExpanded(false);
         onGenerated?.();
 
-        // Open the new draft in the Saved batches tab.
         studio?.reviewBatch(created);
       } catch (generationError) {
         if (aliveRef.current) {
@@ -230,6 +254,8 @@ export default function CertificateBatches({
         }
 
         throw generationError;
+      } finally {
+        generatingRef.current = false;
       }
     });
   }
@@ -267,10 +293,9 @@ export default function CertificateBatches({
 
     runOperation(async () => {
       try {
-        const blob =
-          await getGeneratedCertificateDocument(
-            certificate.id
-          );
+        const blob = await getGeneratedCertificateDocument(
+          certificate.id
+        );
 
         if (!aliveRef.current) return;
 
@@ -297,94 +322,167 @@ export default function CertificateBatches({
             <h2>Generate a draft batch.</h2>
 
             <p>
-              Select eligible participants in the
-              table above, then review their printed
-              names. This batch will use{" "}
-              <strong>{versionLabel}</strong>.
+              Names are filled from participants’ saved
+              profiles. You only need to correct missing or
+              inaccurate names. This batch uses{" "}
+              <strong>
+                {versionLabel || "the selected saved layout"}
+              </strong>.
             </p>
           </div>
 
           <span className="cert-badge">
-            {recipients.length} / 50 selected
+            {recipients.length} / {BATCH_LIMIT} selected
           </span>
         </div>
 
         {recipients.length > 0 ? (
           <>
-            <div className="cert-batch-names">
-              {recipients.map((recipient) => (
-                <div
-                  key={recipient.registration_id}
-                  className="cert-batch-name"
-                >
-                  <div>
-                    <strong>
-                      {recipient.username}
-                    </strong>
+            <div
+              className={`cert-batch-name-status ${
+                invalidNames ? "is-warning" : "is-ready"
+              }`}
+              role="status"
+            >
+              <strong>
+                {invalidNames
+                  ? `${invalidNameCount} participant name${
+                      invalidNameCount === 1 ? "" : "s"
+                    } need attention`
+                  : `${recipients.length} participant name${
+                      recipients.length === 1 ? " is" : "s are"
+                    } ready`}
+              </strong>
 
-                    <small>
-                      {recipient.team_name ||
-                        "Individual participant"}
-                    </small>
-                  </div>
+              <p>
+                {invalidNames
+                  ? "Complete the highlighted names below before generating."
+                  : "You can generate the draft batch directly. Individual name review is optional."}
+              </p>
+            </div>
 
-                  <label>
-                    Printed full name
-                    <input
-                      value={recipient.participant_name}
-                      maxLength={200}
-                      placeholder="Enter the participant’s full name"
-                      disabled={busy}
-                      onChange={(event) =>
-                        onNameChange(
-                          recipient.registration_id,
-                          event.target.value
-                        )
-                      }
-                    />
-                  </label>
+            <div className="cert-name-review">
+              <button
+                type="button"
+                className="cert-name-review-toggle"
+                aria-expanded={namesVisible}
+                disabled={busy || invalidNames}
+                onClick={() =>
+                  setNamesExpanded((previous) => !previous)
+                }
+              >
+                <span>
+                  {invalidNames
+                    ? "Complete missing or invalid names"
+                    : "Review or correct names — optional"}
+                </span>
 
-                  <button
-                    type="button"
-                    disabled={busy}
-                    aria-label={`Remove ${recipient.username} from batch`}
-                    onClick={() =>
-                      onRemove(
-                        recipient.registration_id
-                      )
-                    }
-                  >
-                    Remove
-                  </button>
+                <span aria-hidden="true">
+                  {namesVisible ? "−" : "+"}
+                </span>
+              </button>
+
+              {namesVisible && (
+                <div className="cert-batch-names">
+                  {recipients.map((recipient) => {
+                    const name =
+                      recipient.participant_name ?? "";
+
+                    const valid =
+                      typeof name === "string" &&
+                      name.trim().length > 0 &&
+                      name.trim().length <= 200;
+
+                    return (
+                      <div
+                        key={recipient.registration_id}
+                        className={`cert-batch-name ${
+                          valid ? "" : "cert-batch-name-invalid"
+                        }`}
+                      >
+                        <div>
+                          <strong>
+                            {recipient.username}
+                          </strong>
+
+                          <small>
+                            {recipient.team_name ||
+                              "Individual participant"}
+                          </small>
+                        </div>
+
+                        <label>
+                          Printed full name
+
+                          <input
+                            value={name}
+                            maxLength={200}
+                            placeholder="Participant’s official full name"
+                            disabled={busy}
+                            aria-invalid={!valid}
+                            onChange={(event) =>
+                              onNameChange(
+                                recipient.registration_id,
+                                event.target.value
+                              )
+                            }
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          disabled={busy}
+                          aria-label={`Remove ${recipient.username} from batch`}
+                          onClick={() =>
+                            onRemove(
+                              recipient.registration_id
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              )}
             </div>
 
             {invalidNames && (
-              <small>
-                Enter a full name for every selected
-                participant. Names must contain
-                between 1 and 200 characters.
-              </small>
+              <p className="cert-help">
+                Names must contain between 1 and 200
+                characters. Corrections apply to this
+                certificate batch and do not update student
+                accounts.
+              </p>
             )}
 
             {dirty && (
-              <small>
-                Save your template changes before
-                generating a batch.
-              </small>
+              <p className="cert-help">
+                Save your template changes before generating
+                a batch.
+              </p>
+            )}
+
+            {!versionId && (
+              <p className="cert-help">
+                Choose a saved template version before
+                generating.
+              </p>
+            )}
+
+            {recipients.length > BATCH_LIMIT && (
+              <p className="cert-help">
+                Select no more than {BATCH_LIMIT} participants
+                for this batch.
+              </p>
             )}
 
             <div className="cert-batch-actions">
               <button
                 type="button"
                 className="cert-primary"
-                disabled={
-                  busy ||
-                  dirty ||
-                  invalidNames ||
-                  recipients.length > 50
-                }
+                disabled={cannotGenerate}
                 onClick={generate}
               >
                 Generate draft batch
@@ -393,7 +491,10 @@ export default function CertificateBatches({
               <button
                 type="button"
                 disabled={busy}
-                onClick={onClear}
+                onClick={() => {
+                  onClear?.();
+                  setNamesExpanded(false);
+                }}
               >
                 Clear selection
               </button>
@@ -401,15 +502,15 @@ export default function CertificateBatches({
           </>
         ) : (
           <p>
-            No participants selected. Use the Batch
-            checkboxes above.
+            No participants selected. Use “Select eligible on
+            this page” above, or choose individual participants.
           </p>
         )}
 
         <small>
-          Eligibility is checked again during
-          generation. Drafts remain private and are
-          not issued to students.
+          Eligibility is checked again during generation.
+          Drafts remain private until the event owner
+          publishes them.
         </small>
       </div>
 
@@ -456,8 +557,7 @@ export default function CertificateBatches({
           <>
             {batches.length === 0 ? (
               <p>
-                No certificate batches have been
-                generated yet.
+                No certificate batches have been generated yet.
               </p>
             ) : (
               <div className="cert-recipient-table-wrap">
@@ -481,12 +581,11 @@ export default function CertificateBatches({
                             : ""
                         }
                       >
-                        <td>
-                          {formatDate(item.created_at)}
-                        </td>
+                        <td>{formatDate(item.created_at)}</td>
 
                         <td>
                           {item.certificate_count}
+
                           <small>
                             {item.award_result_id
                               ? "Achievement"
@@ -504,9 +603,7 @@ export default function CertificateBatches({
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() =>
-                              openBatch(item.id)
-                            }
+                            onClick={() => openBatch(item.id)}
                           >
                             Review batch
                           </button>
@@ -528,7 +625,7 @@ export default function CertificateBatches({
                 <button
                   type="button"
                   disabled={
-                    busy || request.page === 1
+                    busy || loading || request.page === 1
                   }
                   onClick={() =>
                     refreshBatches(request.page - 1)
@@ -539,7 +636,7 @@ export default function CertificateBatches({
 
                 <button
                   type="button"
-                  disabled={busy || !data?.next}
+                  disabled={busy || loading || !data?.next}
                   onClick={() =>
                     refreshBatches(request.page + 1)
                   }
@@ -563,9 +660,8 @@ export default function CertificateBatches({
 
             <p>
               These PDFs contain the saved names and
-              information from generation time.
-              Editing a name does not change an
-              existing batch.
+              information from generation time. Editing a name
+              does not change an existing batch.
             </p>
 
             <div className="cert-batch-documents">
@@ -579,8 +675,7 @@ export default function CertificateBatches({
                       openDocument(certificate)
                     }
                   >
-                    Open{" "}
-                    {certificate.participant_name}
+                    Open {certificate.participant_name}
                   </button>
                 )
               )}
@@ -615,45 +710,53 @@ export default function CertificateBatches({
               </>
             )}
 
-            <PublishCertificateBatch
-              key={`${batch.id}-${batch.review_hash}-${batch.status}`}
-              batch={batch}
-              busy={busy}
-              runOperation={runOperation}
-              onPublished={(published) => {
-                setBatch(published);
-                studio?.rememberBatch(published);
+            {isEventOwner ? (
+              <PublishCertificateBatch
+                key={`${batch.id}-${batch.review_hash}-${batch.status}`}
+                batch={batch}
+                busy={busy}
+                runOperation={runOperation}
+                onPublished={(published) => {
+                  setBatch(published);
+                  studio?.rememberBatch(published);
 
-                clearPreview();
-                refreshBatches();
-              }}
-            />
-
-            {batch.status === "published" && (
-              <section style={{ marginTop: 24 }}>
-                <h3>Issued certificates</h3>
-
-                <p className="cert-help">
-                  Share the verification link or
-                  revoke a certificate that needs
-                  correction.
-                </p>
-
-                {(batch.certificates ?? []).map(
-                  (certificate) => (
-                    <CertificateRevocation
-                      key={certificate.id}
-                      certificateId={certificate.id}
-                      participantName={
-                        certificate.participant_name
-                      }
-                      busy={busy}
-                      runOperation={runOperation}
-                    />
-                  )
-                )}
-              </section>
+                  clearPreview();
+                  refreshBatches();
+                }}
+              />
+            ) : (
+              <p className="cert-message" role="note">
+                {batch.status === "published"
+                  ? "This batch has been published. You can view its certificates."
+                  : "This is a draft batch. Ask the event owner to review the PDFs and publish it."}
+              </p>
             )}
+
+            {isEventOwner &&
+              batch.status === "published" && (
+                <section className="cert-batch-issued">
+                  <h3>Issued certificates</h3>
+
+                  <p className="cert-help">
+                    Share the verification link or revoke a
+                    certificate that needs correction.
+                  </p>
+
+                  {(batch.certificates ?? []).map(
+                    (certificate) => (
+                      <CertificateRevocation
+                        key={certificate.id}
+                        certificateId={certificate.id}
+                        participantName={
+                          certificate.participant_name
+                        }
+                        busy={busy}
+                        runOperation={runOperation}
+                      />
+                    )
+                  )}
+                </section>
+              )}
           </div>
         )}
       </div>

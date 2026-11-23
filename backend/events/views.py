@@ -29,7 +29,12 @@ import urllib.error
 import urllib.request
 
 from django.conf import settings
-
+from .staff_access import (
+    HasEventWorkspaceAccess,
+    accessible_events,
+    get_staff_event,
+    require_event_capability,
+)
 
 @api_view(["GET"])
 def eventhub_info(request):
@@ -69,16 +74,18 @@ class PublicEventListView(APIView):
 @method_decorator(csrf_protect, name="dispatch")
 class OrganizerEventListView(APIView):
 
-    permission_classes = [IsOrganizer]
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsOrganizer()]
+
+        return [HasEventWorkspaceAccess()]
 
     def get(self, request):
         events = (
-            Event.objects
-            .filter(organizer=request.user)
+            accessible_events(request.user)
             .select_related("organizer")
             .order_by("-created_at")
         )
-
         serializer = EventSerializer(
             events,
             many=True
@@ -396,17 +403,13 @@ class CancelRegistrationView(APIView):
 @method_decorator(csrf_protect, name="dispatch")
 class OrganizerEventDetailView(APIView):
 
-    permission_classes = [IsOrganizer]
+    permission_classes = [HasEventWorkspaceAccess]
 
     def get_event(self, request, event_id):
-        return (
-            Event.objects
-            .filter(
-                id=event_id,
-                organizer=request.user
-            )
-            .select_related("organizer")
-            .first()
+        return get_staff_event(
+            request.user,
+            event_id,
+            "view_event",
         )
 
     def get(self, request, event_id):
@@ -428,14 +431,11 @@ class OrganizerEventDetailView(APIView):
 
             # Lock the same event row used during
             # student registration.
-            event = (
-                Event.objects
-                .select_for_update()
-                .filter(
-                    id=event_id,
-                    organizer=request.user
-                )
-                .first()
+            event = get_staff_event(
+                request.user,
+                event_id,
+                "edit_event",
+                lock=True,
             )
 
             if event is None:
@@ -533,20 +533,16 @@ class OrganizerEventDetailView(APIView):
 # ============================================================
 
 class OrganizerParticipantsView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [HasEventWorkspaceAccess]
 
     def get(self, request, event_id):
 
         # Only the event owner can access its participants.
-        event = (
-            Event.objects
-            .filter(
-                id=event_id,
-                organizer=request.user
-            )
-            .first()
+        event = get_staff_event(
+            request.user,
+            event_id,
+            "view_participants",
         )
-
         if event is None:
             return Response(
                 {"message": "Event not found."},
@@ -688,129 +684,161 @@ class StudentTicketView(APIView):
 
 @method_decorator(csrf_protect, name="dispatch")
 class OrganizerCheckInView(APIView):
-
-    permission_classes = [IsOrganizer]
+    permission_classes = [HasEventWorkspaceAccess]
 
     def post(self, request, event_id):
-
-        # The organizer submits the token read from the QR.
-        raw_token = request.data.get("token")
-
-        if not isinstance(raw_token, str):
+        if not isinstance(request.data, dict):
             return Response(
-                {"message": "A valid ticket token is required."},
-                status=status.HTTP_400_BAD_REQUEST
+                {"message": "Expected a JSON object."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        try:
-            ticket_token = uuid.UUID(raw_token)
-        except (ValueError, AttributeError):
+        allowed_fields = {"token", "registration_id"}
+
+        if set(request.data) - allowed_fields:
             return Response(
-                {"message": "Invalid ticket token format."},
-                status=status.HTTP_400_BAD_REQUEST
+                {"message": "Unexpected check-in fields."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
+
+        has_token = "token" in request.data
+        has_registration = "registration_id" in request.data
+
+        if has_token == has_registration:
+            return Response(
+                {
+                    "message": (
+                        "Provide either a ticket UUID "
+                        "or a registration ID."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ticket_token = None
+        registration_id = None
+
+        if has_token:
+            raw_token = request.data["token"]
+
+            if not isinstance(raw_token, str):
+                return Response(
+                    {"message": "A valid ticket UUID is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                ticket_token = uuid.UUID(raw_token.strip())
+            except (ValueError, AttributeError):
+                return Response(
+                    {"message": "Invalid ticket UUID format."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            registration_id = request.data["registration_id"]
+
+            if (
+                isinstance(registration_id, bool)
+                or not isinstance(registration_id, int)
+                or registration_id < 1
+            ):
+                return Response(
+                    {"message": "A valid registration ID is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         with transaction.atomic():
-
-            # Lock the event first.
-            # The same lock order is used by registration APIs.
-            event = (
-                Event.objects
-                .select_for_update()
-                .filter(
-                    id=event_id,
-                    organizer=request.user
-                )
-                .first()
+            event = get_staff_event(
+                request.user,
+                event_id,
+                "check_in",
+                lock=True,
             )
-
-            if event is None:
-                return Response(
-                    {"message": "Event not found."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
 
             if event.status != "published":
                 return Response(
                     {
-                        "message":
-                        "Attendance is unavailable for this event."
+                        "message": (
+                            "Attendance is unavailable for this event."
+                        )
                     },
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             now = timezone.now()
 
-            # Check-in opens 30 minutes before the event.
-            check_in_open = (
+            if now < (
                 event.start_datetime
                 - timezone.timedelta(minutes=30)
-            )
-
-            if now < check_in_open:
+            ):
                 return Response(
                     {
-                        "message":
-                        "Check-in opens 30 minutes before the event."
+                        "message": (
+                            "Check-in opens 30 minutes "
+                            "before the event."
+                        )
                     },
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Close check-in when the event ends.
             if now >= event.end_datetime:
                 return Response(
-                    {
-                        "message":
-                        "Check-in is closed for this event."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"message": "Check-in is closed for this event."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Lock the ticket so concurrent scans cannot
-            # mark attendance twice.
-            ticket = (
-                EventTicket.objects
-                .select_for_update()
-                .select_related(
-                    "registration",
-                    "registration__student"
-                )
-                .filter(
-                    token=ticket_token,
-                    registration__event=event
-                )
-                .first()
+            registrations = (
+                Registration.objects
+                .select_for_update(of=("self",))
+                .select_related("student")
+                .filter(event=event)
             )
 
-            if ticket is None:
-                return Response(
-                    {"message": "Ticket not found for this event."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+            if has_token:
+                registration = registrations.filter(
+                    ticket__token=ticket_token
+                ).first()
+            else:
+                registration = registrations.filter(
+                    pk=registration_id
+                ).first()
 
-            registration = ticket.registration
-
-            # A cancelled registration is not valid.
-            if registration.status != "registered":
+            if registration is None:
                 return Response(
                     {
-                        "message":
-                        "This registration is cancelled."
+                        "message": (
+                            "Registration or ticket not found "
+                            "for this event."
+                        )
                     },
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # ============================================================
-            # TEAM ATTENDANCE ELIGIBILITY
-            # ============================================================
+            if registration.student_id == request.user.pk:
+                return Response(
+                    {
+                        "message": (
+                            "You cannot mark your own attendance. "
+                            "Ask another authorized event staff member."
+                        )
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            if registration.status != "registered":
+                return Response(
+                    {"message": "This registration is cancelled."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             if event.registration_mode == "team":
-                confirmed_membership = TeamMembership.objects.filter(
+                confirmed = TeamMembership.objects.filter(
                     registration=registration,
                     team__event=event,
                     team__status="confirmed",
                 ).exists()
 
-                if not confirmed_membership:
+                if not confirmed:
                     return Response(
                         {
                             "message": (
@@ -821,54 +849,63 @@ class OrganizerCheckInView(APIView):
                         status=status.HTTP_403_FORBIDDEN,
                     )
 
-            # Attendance can only be marked once.
+            # Manual lookup can find an eligible registration
+            # whose student has not opened the ticket page yet.
+            # Create its ticket only during the confirmed POST.
+            ticket, _ = EventTicket.objects.get_or_create(
+                registration=registration
+            )
+
+            ticket = (
+                EventTicket.objects
+                .select_for_update()
+                .get(pk=ticket.pk)
+            )
+
             if ticket.checked_in_at is not None:
                 return Response(
                     {
-                        "message":
-                        "This ticket has already been checked in.",
+                        "message": (
+                            "This ticket has already been checked in."
+                        ),
                         "checked_in_at": ticket.checked_in_at,
                     },
-                    status=status.HTTP_409_CONFLICT
+                    status=status.HTTP_409_CONFLICT,
                 )
 
-            # Record verified attendance.
             ticket.checked_in_at = now
             ticket.checked_in_by = request.user
 
             ticket.save(
                 update_fields=[
                     "checked_in_at",
-                    "checked_in_by"
+                    "checked_in_by",
                 ]
             )
 
             return Response({
                 "message": "Attendance marked successfully.",
                 "student_username": registration.student.username,
-                "event_id": event.id,
+                "registration_id": registration.pk,
+                "event_id": event.pk,
                 "event_title": event.title,
                 "checked_in_at": ticket.checked_in_at,
             })
-
             # ============================================================
             # FEATURE 4C — ORGANIZER ATTENDANCE DASHBOARD
             # ============================================================
 
 class OrganizerAttendanceView(APIView):
 
-    permission_classes = [IsOrganizer]
+    permission_classes = [HasEventWorkspaceAccess]
 
     def get(self, request, event_id):
 
         # Only the organizer who owns the event can access attendance.
-        event = (
-            Event.objects
-            .filter(
-                id=event_id,
-                organizer=request.user
-            )
-            .first()
+        event = get_staff_event(
+            request.user,
+            event_id,
+            "view_attendance",
         )
 
         if event is None:

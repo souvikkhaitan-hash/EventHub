@@ -7,7 +7,13 @@ from .models import CertificateBatch, GeneratedCertificate
 
 class BatchRecipientSerializer(serializers.Serializer):
     registration_id = serializers.IntegerField(min_value=1)
-    participant_name = serializers.CharField(max_length=200)
+
+    participant_name = serializers.CharField(
+        max_length=200,
+        required=False,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
 
 
 class BatchCreateSerializer(serializers.Serializer):

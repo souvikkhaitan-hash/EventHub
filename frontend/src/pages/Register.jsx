@@ -2,101 +2,70 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import AuthLayout from "../components/AuthLayout";
+import AuthPortalSwitch from "../components/AuthPortalSwitch";
+import ProfileFields from "../components/ProfileFields";
 
-import { registerStudent } from "../services/auth";
+import {
+  emptyProfile,
+  registerStudent,
+} from "../services/auth";
 
 import "../styles/auth.css";
-
-
-// ============================================================
-// PASSWORD STRENGTH HELPER
-// ============================================================
+import "../styles/account-profile.css";
 
 function getPasswordStrength(password) {
   if (!password) {
-    return {
-      score: 0,
-      label: "",
-    };
+    return { score: 0, label: "" };
   }
 
   let score = 0;
 
-  if (password.length >= 8) {
+  if (password.length >= 8) score++;
+  if (password.length >= 12) score++;
+
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) {
     score++;
   }
 
-  if (password.length >= 12) {
-    score++;
-  }
-
-  if (
-    /[a-z]/.test(password) &&
-    /[A-Z]/.test(password)
-  ) {
-    score++;
-  }
-
-  if (
-    /\d/.test(password) &&
-    /[^A-Za-z0-9]/.test(password)
-  ) {
+  if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) {
     score++;
   }
 
   if (score <= 1) {
-    return {
-      score: 1,
-      label: "Needs improvement",
-    };
+    return { score: 1, label: "Needs improvement" };
   }
 
   if (score === 2) {
-    return {
-      score: 2,
-      label: "Fair",
-    };
+    return { score: 2, label: "Fair" };
   }
 
   if (score === 3) {
-    return {
-      score: 3,
-      label: "Good",
-    };
+    return { score: 3, label: "Good" };
   }
 
-  return {
-    score: 4,
-    label: "Strong",
-  };
+  return { score: 4, label: "Strong" };
 }
 
-
-// ============================================================
-// REGISTER PAGE
-// ============================================================
-
-export default function Register() {
+export default function Register({ accountType = "student" }) {
+  const organizerRegistration = accountType === "organizer";
   const navigate = useNavigate();
 
+  const loginPath = organizerRegistration
+    ? "/organizer/login"
+    : "/login";
+
   const [form, setForm] = useState({
+    ...emptyProfile,
     username: "",
     email: "",
     password: "",
   });
 
-  const [showPassword, setShowPassword] =
-    useState(false);
-
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const passwordStrength =
-    getPasswordStrength(form.password);
-
-  // ==========================================================
-  // INPUT HANDLING
-  // ==========================================================
+  const passwordStrength = getPasswordStrength(form.password);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -110,13 +79,10 @@ export default function Register() {
       ...previous,
       [name]: undefined,
       message: undefined,
+      detail: undefined,
       non_field_errors: undefined,
     }));
   }
-
-  // ==========================================================
-  // ERROR HELPER
-  // ==========================================================
 
   function getError(field) {
     const value = errors[field];
@@ -133,10 +99,6 @@ export default function Register() {
     getError("detail") ||
     getError("non_field_errors");
 
-  // ==========================================================
-  // REGISTRATION
-  // ==========================================================
-
   async function handleSubmit(event) {
     event.preventDefault();
 
@@ -150,28 +112,34 @@ export default function Register() {
         username: form.username.trim(),
         email: form.email.trim(),
         password: form.password,
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        roll_number: form.roll_number.trim(),
+        department: form.department.trim(),
+        academic_year: form.academic_year,
       });
 
-      navigate("/login", {
+      navigate(loginPath, {
         replace: true,
-
         state: {
-          message:
-            "Your EventHub account is ready! Sign in to start exploring.",
+          message: organizerRegistration
+            ? "Your account is ready. Sign in to submit your organizer application."
+            : "Your EventHub account is ready! Sign in to start exploring.",
         },
       });
     } catch (error) {
+      const details = error?.details;
+
       if (
-        error.details &&
-        typeof error.details === "object" &&
-        !Array.isArray(error.details)
+        details &&
+        typeof details === "object" &&
+        !Array.isArray(details)
       ) {
-        setErrors(error.details);
+        setErrors(details);
       } else {
         setErrors({
           message:
-            error.message ||
-            "Unable to create your account.",
+            error?.message || "Unable to create your account.",
         });
       }
     } finally {
@@ -179,24 +147,40 @@ export default function Register() {
     }
   }
 
-  // ==========================================================
-  // FORM
-  // ==========================================================
-
   return (
     <AuthLayout
-      title="Your campus journey starts here."
-      description="Create your account and discover everything happening around campus."
+      title={
+        organizerRegistration
+          ? "Create your organizer account."
+          : "Your campus journey starts here."
+      }
+      description={
+        organizerRegistration
+          ? "Create your account, then submit your organizer application for admin approval."
+          : "Create your account and discover everything happening around campus."
+      }
     >
       <div className="auth-v2 auth-v2-register">
+        <AuthPortalSwitch
+          mode="register"
+          active={organizerRegistration ? "organizer" : "student"}
+        />
+
+        {organizerRegistration && (
+          <p className="auth-organizer-note">
+            Already have an EventHub account?{" "}
+            <Link to="/organizer/login">
+              Sign in with your existing account
+            </Link>{" "}
+            to apply. Organizer access is granted after admin approval.
+          </p>
+        )}
 
         <form
           className="auth-form auth-v2-form"
           onSubmit={handleSubmit}
+          aria-busy={loading}
         >
-
-          {/* GENERAL ERROR */}
-
           {generalError && (
             <div
               className="auth-v2-alert auth-v2-error"
@@ -213,26 +197,25 @@ export default function Register() {
             </div>
           )}
 
-          {/* USERNAME */}
+          <ProfileFields
+            value={form}
+            onChange={handleChange}
+            errors={errors}
+            disabled={loading}
+          />
 
           <div className="form-field">
-
             <label htmlFor="register-username">
               Username
             </label>
 
             <div className="auth-v2-input-wrap">
-
               <span
                 className="auth-v2-input-icon"
                 aria-hidden="true"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
+                <svg viewBox="0 0 24 24" fill="none">
                   <circle cx="12" cy="8" r="4" />
-
                   <path d="M4 21C4 16.5 7.2 14 12 14C16.8 14 20 16.5 20 21" />
                 </svg>
               </span>
@@ -247,9 +230,7 @@ export default function Register() {
                 autoComplete="username"
                 autoCapitalize="none"
                 spellCheck={false}
-                aria-invalid={Boolean(
-                  getError("username")
-                )}
+                aria-invalid={Boolean(getError("username"))}
                 aria-describedby={
                   getError("username")
                     ? "register-username-error"
@@ -258,7 +239,6 @@ export default function Register() {
                 required
                 disabled={loading}
               />
-
             </div>
 
             {getError("username") && (
@@ -270,27 +250,19 @@ export default function Register() {
                 {getError("username")}
               </p>
             )}
-
           </div>
 
-          {/* EMAIL */}
-
           <div className="form-field">
-
             <label htmlFor="register-email">
               College email
             </label>
 
             <div className="auth-v2-input-wrap">
-
               <span
                 className="auth-v2-input-icon"
                 aria-hidden="true"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
+                <svg viewBox="0 0 24 24" fill="none">
                   <rect
                     x="3"
                     y="5"
@@ -298,7 +270,6 @@ export default function Register() {
                     height="14"
                     rx="2"
                   />
-
                   <path d="M4 7L12 13L20 7" />
                 </svg>
               </span>
@@ -311,9 +282,9 @@ export default function Register() {
                 onChange={handleChange}
                 placeholder="Enter your college email"
                 autoComplete="email"
-                aria-invalid={Boolean(
-                  getError("email")
-                )}
+                autoCapitalize="none"
+                spellCheck={false}
+                aria-invalid={Boolean(getError("email"))}
                 aria-describedby={
                   getError("email")
                     ? "register-email-error"
@@ -322,7 +293,6 @@ export default function Register() {
                 required
                 disabled={loading}
               />
-
             </div>
 
             {getError("email") && (
@@ -334,27 +304,19 @@ export default function Register() {
                 {getError("email")}
               </p>
             )}
-
           </div>
 
-          {/* PASSWORD */}
-
           <div className="form-field">
-
             <label htmlFor="register-password">
               Password
             </label>
 
             <div className="password-field auth-v2-input-wrap">
-
               <span
                 className="auth-v2-input-icon"
                 aria-hidden="true"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
+                <svg viewBox="0 0 24 24" fill="none">
                   <rect
                     x="5"
                     y="10"
@@ -362,7 +324,6 @@ export default function Register() {
                     height="11"
                     rx="2"
                   />
-
                   <path d="M8 10V7A4 4 0 0 1 16 7V10" />
                 </svg>
               </span>
@@ -370,17 +331,13 @@ export default function Register() {
               <input
                 id="register-password"
                 name="password"
-                type={
-                  showPassword ? "text" : "password"
-                }
+                type={showPassword ? "text" : "password"}
                 value={form.password}
                 onChange={handleChange}
                 placeholder="Create a strong password"
                 autoComplete="new-password"
                 minLength={8}
-                aria-invalid={Boolean(
-                  getError("password")
-                )}
+                aria-invalid={Boolean(getError("password"))}
                 aria-describedby={[
                   "register-password-hint",
                   getError("password")
@@ -396,24 +353,19 @@ export default function Register() {
               <button
                 type="button"
                 className="password-toggle auth-v2-password-toggle"
-                onClick={() =>
-                  setShowPassword(
-                    (previous) => !previous
-                  )
-                }
+                onClick={() => {
+                  setShowPassword((previous) => !previous);
+                }}
                 aria-label={
-                  showPassword
-                    ? "Hide password"
-                    : "Show password"
+                  showPassword ? "Hide password" : "Show password"
                 }
                 aria-pressed={showPassword}
+                aria-controls="register-password"
+                disabled={loading}
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
-
             </div>
-
-            {/* PASSWORD ERROR */}
 
             {getError("password") && (
               <p
@@ -424,8 +376,6 @@ export default function Register() {
                 {getError("password")}
               </p>
             )}
-
-            {/* PASSWORD STRENGTH */}
 
             {form.password && (
               <div
@@ -449,9 +399,7 @@ export default function Register() {
 
                 <div className="auth-v2-strength-label">
                   <span>Password strength</span>
-                  <strong>
-                    {passwordStrength.label}
-                  </strong>
+                  <strong>{passwordStrength.label}</strong>
                 </div>
               </div>
             )}
@@ -460,13 +408,10 @@ export default function Register() {
               id="register-password-hint"
               className="field-hint"
             >
-              Use at least 8 characters. A longer,
-              unique password is more secure.
+              Use at least 8 characters. A longer, unique password
+              is more secure.
             </p>
-
           </div>
-
-          {/* SUBMIT */}
 
           <button
             type="submit"
@@ -475,12 +420,19 @@ export default function Register() {
           >
             {loading ? (
               <>
-                <span className="auth-v2-spinner" />
+                <span
+                  className="auth-v2-spinner"
+                  aria-hidden="true"
+                />
                 Creating account...
               </>
             ) : (
               <>
-                <span>Create my account</span>
+                <span>
+                  {organizerRegistration
+                    ? "Create account & continue"
+                    : "Create my account"}
+                </span>
 
                 <span
                   className="auth-v2-submit-arrow"
@@ -491,20 +443,14 @@ export default function Register() {
               </>
             )}
           </button>
-
         </form>
-
-        {/* SWITCH TO LOGIN */}
 
         <div className="auth-v2-bottom">
           <p className="auth-switch">
             Already part of EventHub?{" "}
-            <Link to="/login">
-              Sign in ↗
-            </Link>
+            <Link to={loginPath}>Sign in ↗</Link>
           </p>
         </div>
-
       </div>
     </AuthLayout>
   );
