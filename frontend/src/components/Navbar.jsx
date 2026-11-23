@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 
 import { useAuth } from "../context/AuthContext";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { user, loading, logout } = useAuth();
@@ -12,16 +13,35 @@ export default function Navbar() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
 
-  // Close mobile navigation when the page changes.
+  const isOrganizer = Boolean(user?.is_organizer);
+  const canReviewOrganizers = Boolean(
+    user?.can_review_organizers
+  );
+
+  const isStudent =
+    Boolean(user) &&
+    !isOrganizer &&
+    !canReviewOrganizers;
+
+  function getNavClass({ isActive }) {
+    return isActive ? "nav-active" : "";
+  }
+
+  // Close the mobile menu after navigation.
   useEffect(() => {
     setMenuOpen(false);
-  }, [location.pathname, location.hash]);
+    setLogoutError("");
+  }, [
+    location.pathname,
+    location.search,
+    location.hash,
+  ]);
 
-  // Change navbar shadow when scrolling.
+  // Update the navbar appearance when scrolling.
   useEffect(() => {
-    const onScroll = () => {
+    function onScroll() {
       setScrolled(window.scrollY > 16);
-    };
+    }
 
     onScroll();
 
@@ -34,15 +54,19 @@ export default function Navbar() {
     };
   }, []);
 
-  // Allow Escape to close the mobile menu.
+  // Support closing the mobile menu with Escape.
   useEffect(() => {
     if (!menuOpen) return;
 
-    const onEscape = (event) => {
+    function onEscape(event) {
       if (event.key === "Escape") {
         setMenuOpen(false);
+
+        document
+          .getElementById("eventhub-menu-toggle")
+          ?.focus();
       }
-    };
+    }
 
     window.addEventListener("keydown", onEscape);
 
@@ -52,6 +76,8 @@ export default function Navbar() {
   }, [menuOpen]);
 
   async function handleLogout() {
+    if (loggingOut) return;
+
     setLoggingOut(true);
     setLogoutError("");
 
@@ -60,7 +86,8 @@ export default function Navbar() {
       setMenuOpen(false);
     } catch (error) {
       setLogoutError(
-        error.message || "Unable to log out."
+        error?.message ||
+          "Unable to log out. Please try again."
       );
     } finally {
       setLoggingOut(false);
@@ -74,9 +101,6 @@ export default function Navbar() {
       }`}
     >
       <div className="container navbar">
-
-        {/* BRAND */}
-
         <Link
           to="/"
           className="brand"
@@ -92,10 +116,10 @@ export default function Navbar() {
             EventHub
           </span>
         </Link>
-
-        {/* MOBILE MENU BUTTON */}
+        <NotificationBell />
 
         <button
+          id="eventhub-menu-toggle"
           className="nav-menu-toggle"
           type="button"
           aria-expanded={menuOpen}
@@ -104,15 +128,13 @@ export default function Navbar() {
             menuOpen ? "Close menu" : "Open menu"
           }
           onClick={() => {
-            setMenuOpen((value) => !value);
+            setMenuOpen((previous) => !previous);
           }}
         >
-          <span />
-          <span />
-          <span />
+          <span aria-hidden="true" />
+          <span aria-hidden="true" />
+          <span aria-hidden="true" />
         </button>
-
-        {/* NAVIGATION PANEL */}
 
         <div
           id="eventhub-nav-panel"
@@ -120,27 +142,21 @@ export default function Navbar() {
             menuOpen ? "nav-panel-open" : ""
           }`}
         >
-
           <nav
             className="nav-links"
             aria-label="Main navigation"
           >
-
             <NavLink
               to="/"
               end
-              className={({ isActive }) =>
-                isActive ? "nav-active" : ""
-              }
+              className={getNavClass}
             >
               Home
             </NavLink>
 
             <NavLink
               to="/events"
-              className={({ isActive }) =>
-                isActive ? "nav-active" : ""
-              }
+              className={getNavClass}
             >
               Explore Events
             </NavLink>
@@ -149,40 +165,84 @@ export default function Navbar() {
               About
             </Link>
 
-            {/* ORGANIZER NAVIGATION */}
-
-            {!loading && user?.is_organizer && (
-              <Link to="/organizer">
-                Organizer Dashboard
-              </Link>
+            {!loading && !user && (
+              <NavLink
+                to="/organizer/login"
+                className={getNavClass}
+              >
+                For organizers
+              </NavLink>
             )}
 
+            {!loading && isOrganizer && (
+              <NavLink
+                to="/organizer"
+                className={getNavClass}
+              >
+                Organizer Dashboard
+              </NavLink>
+            )}
+
+            {!loading && canReviewOrganizers && (
+              <NavLink
+                to="/admin/applications"
+                className={getNavClass}
+              >
+                Admin Workspace
+              </NavLink>
+            )}
           </nav>
 
-          {/* ACCOUNT ACTIONS */}
-
           <div className="nav-actions">
-
             {loading ? (
-              <span className="nav-label">
+              <span
+                className="nav-label"
+                role="status"
+              >
                 Loading...
               </span>
             ) : user ? (
               <>
-
                 <span className="nav-username">
                   Hi, {user.username}
                 </span>
 
-                {/* STUDENT ONLY */}
+                <NavLink
+                  to="/account/profile"
+                  className={getNavClass}
+                >
+                  My Profile
+                </NavLink>
 
-                {!user.is_organizer && (
-                  <Link
-                    to="/my-registrations"
-                    className="nav-my-registrations"
-                  >
-                    My Registrations
-                  </Link>
+                {isStudent && (
+                  <>
+                  <NavLink
+  to="/organizer/workspace"
+  className={getNavClass}
+>
+  Event staff workspace
+</NavLink>
+                    <NavLink
+                      to="/become-organizer"
+                      className={getNavClass}
+                    >
+                      Become an organizer
+                    </NavLink>
+
+                    <NavLink
+                      to="/my-registrations"
+                      className={({ isActive }) =>
+                        [
+                          "nav-my-registrations",
+                          isActive ? "nav-active" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")
+                      }
+                    >
+                      My Registrations
+                    </NavLink>
+                  </>
                 )}
 
                 <button
@@ -195,11 +255,9 @@ export default function Navbar() {
                     ? "Signing out..."
                     : "Logout"}
                 </button>
-
               </>
             ) : (
               <>
-
                 <Link
                   to="/login"
                   className="nav-login-link"
@@ -216,10 +274,8 @@ export default function Navbar() {
                     ↗
                   </span>
                 </Link>
-
               </>
             )}
-
           </div>
 
           {logoutError && (
@@ -230,9 +286,7 @@ export default function Navbar() {
               {logoutError}
             </p>
           )}
-
         </div>
-
       </div>
     </header>
   );

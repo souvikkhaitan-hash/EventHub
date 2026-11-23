@@ -10,7 +10,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from events.models import Event
-from events.permissions import IsOrganizer
+from .permissions import (
+    CanManageCertificates,
+    certificate_event,
+    certificate_event_ids,
+)
 
 from .batch_serializers import (
     BatchCreateSerializer,
@@ -25,7 +29,7 @@ from .views import private_file_response
 def owned_batches(user):
     return (
         CertificateBatch.objects
-        .filter(event__organizer=user)
+        .filter(event_id__in=certificate_event_ids(user))
         .annotate(certificate_count=Count("certificates"))
         .prefetch_related("certificates")
     )
@@ -42,15 +46,11 @@ class BatchPagination(PageNumberPagination):
 
 @method_decorator(csrf_protect, name="dispatch")
 class EventCertificateBatchesView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
     parser_classes = [JSONParser]
 
     def get(self, request, event_id):
-        event = get_object_or_404(
-            Event,
-            id=event_id,
-            organizer=request.user,
-        )
+        event = certificate_event(request.user, event_id)
 
         batches = owned_batches(request.user).filter(
             event=event
@@ -109,7 +109,7 @@ class EventCertificateBatchesView(APIView):
 
 
 class CertificateBatchDetailView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
 
     def get(self, request, batch_id):
         batch = get_object_or_404(
@@ -123,13 +123,15 @@ class CertificateBatchDetailView(APIView):
 
 
 class GeneratedCertificateDocumentView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
 
     def get(self, request, certificate_id):
         certificate = get_object_or_404(
             GeneratedCertificate.objects.select_related("batch"),
             id=certificate_id,
-            batch__event__organizer=request.user,
+            batch__event_id__in=certificate_event_ids(
+                request.user
+            ),
         )
 
         document_field = (

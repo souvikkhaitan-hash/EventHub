@@ -6,28 +6,40 @@ import {
   useRef,
   useState,
 } from "react";
+
 import { Link, useParams } from "react-router";
+
 import {
   Html5QrcodeScanner,
   Html5QrcodeSupportedFormats,
 } from "html5-qrcode";
 
+import AttendanceLookup from "../components/AttendanceLookup";
+import { useEventAccess } from "../components/EventAccessGate";
+
 import {
   getOrganizerAttendance,
   checkInStudent,
+  checkInRegisteredStudent,
 } from "../services/events";
 
 import "../styles/attendance-editorial.css";
+import AttendanceExports from "../components/AttendanceExports";
 
 // Release the previous camera before opening another scanner.
 let cameraRelease = Promise.resolve();
 
 function message(error) {
+  const candidates = [
+    error?.details?.message,
+    error?.details?.detail,
+    error?.message,
+  ];
+
   return (
-    error?.details?.message ||
-    error?.details?.detail ||
-    error?.message ||
-    "Please try again."
+    candidates.find(
+      (value) => typeof value === "string" && value.trim()
+    ) || "Please try again."
   );
 }
 
@@ -48,6 +60,7 @@ function dateTime(value) {
 
 function Camera({ onCapture, onError }) {
   const uniqueId = useId();
+
   const readerId = `attendance-reader-${uniqueId.replace(
     /[^a-zA-Z0-9_-]/g,
     ""
@@ -83,7 +96,12 @@ function Camera({ onCapture, onError }) {
 
         scanner.render(
           (text) => {
-            if (disposed || captured || !text.trim()) {
+            if (
+              disposed ||
+              captured ||
+              typeof text !== "string" ||
+              !text.trim()
+            ) {
               return;
             }
 
@@ -124,6 +142,16 @@ export default function OrganizerAttendance() {
 }
 
 function AttendanceWorkspace({ id }) {
+  const access = useEventAccess();
+
+  const canViewParticipants = Boolean(
+    access?.capabilities?.includes("view_participants")
+  );
+
+  const canCheckIn = Boolean(
+    access?.capabilities?.includes("check_in")
+  );
+
   const [data, setData] = useState(null);
   const [refreshing, setRefreshing] = useState(true);
   const [error, setError] = useState("");
@@ -142,6 +170,8 @@ function AttendanceWorkspace({ id }) {
   const request = useRef(0);
   const submitting = useRef(false);
   const tokenInput = useRef(null);
+
+  const workspacePath = `/organizer/events/${id}/workspace`;
 
   const refresh = useCallback(async () => {
     const current = ++request.current;
@@ -209,18 +239,14 @@ function AttendanceWorkspace({ id }) {
     setScanning(false);
   }, []);
 
-  async function submit(event) {
-    event.preventDefault();
-
-    const value = token.trim();
-
+  async function performCheckIn(sendRequest) {
     if (
-      !value ||
+      !canCheckIn ||
       submitting.current ||
       scanning ||
       refreshing
     ) {
-      return;
+      return false;
     }
 
     submitting.current = true;
@@ -229,19 +255,23 @@ function AttendanceWorkspace({ id }) {
     setResult(null);
 
     try {
-      const response = await checkInStudent(id, value);
+      const response = await sendRequest();
 
-      if (!active.current) return;
+      if (!active.current) return false;
 
       setResult(response);
       setToken("");
 
       // A refresh failure must not hide a successful check-in.
       await refresh();
+
+      return true;
     } catch (err) {
       if (active.current) {
         setCheckError(message(err));
       }
+
+      return false;
     } finally {
       submitting.current = false;
 
@@ -251,7 +281,28 @@ function AttendanceWorkspace({ id }) {
     }
   }
 
-  const records = data?.attendance || [];
+  async function submit(event) {
+    event.preventDefault();
+
+    const value = token.trim();
+
+    if (!value) return;
+
+    await performCheckIn(
+      () => checkInStudent(id, value)
+    );
+  }
+
+  async function checkInRegistration(registrationId) {
+    return performCheckIn(
+      () => checkInRegisteredStudent(id, registrationId)
+    );
+  }
+
+  const records = useMemo(
+    () => data?.attendance || [],
+    [data]
+  );
 
   const filtered = useMemo(
     () =>
@@ -268,19 +319,20 @@ function AttendanceWorkspace({ id }) {
       <main className="at-page">
         <Link
           className="at-back"
-          to={`/organizer/events/${id}/participants`}
+          to={workspacePath}
         >
-          ← Back to participants
+          ← Event workspace
         </Link>
 
         <div
           className="at-panel at-state"
           role={error ? "alert" : "status"}
         >
-          {error || "Loading attendance…"}
+          {error || "Loading attendance…" }
 
           {error && (
             <button
+              type="button"
               className="at-button"
               onClick={refresh}
               disabled={refreshing}
@@ -294,9 +346,7 @@ function AttendanceWorkspace({ id }) {
   }
 
   const stats = data.statistics;
-  const rawPercentage = Number(
-    stats.attendance_percentage
-  );
+  const rawPercentage = Number(stats.attendance_percentage);
 
   const percentage = Number.isFinite(rawPercentage)
     ? Math.max(0, Math.min(100, rawPercentage))
@@ -316,9 +366,9 @@ function AttendanceWorkspace({ id }) {
     <main className="at-page">
       <Link
         className="at-back"
-        to={`/organizer/events/${id}/participants`}
+        to={workspacePath}
       >
-        ← Back to participants
+        ← Event workspace
       </Link>
 
       <header className="at-heading">
@@ -334,12 +384,14 @@ function AttendanceWorkspace({ id }) {
           <p>{data.event.title}</p>
         </div>
 
-        <Link
-          className="at-button"
-          to={`/organizer/events/${id}/participants`}
-        >
-          View participants ↗
-        </Link>
+        {canViewParticipants && (
+          <Link
+            className="at-button"
+            to={`/organizer/events/${id}/participants`}
+          >
+            View participants ↗
+          </Link>
+        )}
       </header>
 
       <section
@@ -377,9 +429,7 @@ function AttendanceWorkspace({ id }) {
             aria-valuemax={100}
             aria-valuenow={percentage}
           >
-            <div
-              style={{ width: `${percentage}%` }}
-            />
+            <div style={{ width: `${percentage}%` }} />
           </div>
 
           <strong>{percentage}%</strong>
@@ -398,8 +448,8 @@ function AttendanceWorkspace({ id }) {
           <p>{error}</p>
 
           <span>
-            Displayed totals may be out of date. Use
-            Refresh below.
+            Displayed totals may be out of date.
+            Use Refresh below.
           </span>
         </div>
       )}
@@ -413,9 +463,7 @@ function AttendanceWorkspace({ id }) {
             <h2>Scan a ticket</h2>
 
             <span className="at-camera-label">
-              {scanning
-                ? "Scanner open"
-                : "Camera off"}
+              {scanning ? "Scanner open" : "Camera off"}
             </span>
           </div>
 
@@ -454,15 +502,19 @@ function AttendanceWorkspace({ id }) {
               className={`at-button ${
                 scanning ? "" : "at-primary"
               }`}
-              disabled={checking || refreshing}
+              disabled={
+                !canCheckIn ||
+                checking ||
+                refreshing
+              }
               onClick={() => {
+                if (submitting.current) return;
+
                 setCameraError("");
                 setScanning((value) => !value);
               }}
             >
-              {scanning
-                ? "Close scanner"
-                : "Start camera"}
+              {scanning ? "Close scanner" : "Start camera"}
             </button>
           </div>
 
@@ -471,8 +523,8 @@ function AttendanceWorkspace({ id }) {
               className="at-notice at-error"
               role="alert"
             >
-              {cameraError} You can also enter the
-              ticket token manually.
+              {cameraError} You can also enter the ticket
+              UUID or search by roll/register number.
             </div>
           )}
         </article>
@@ -481,13 +533,13 @@ function AttendanceWorkspace({ id }) {
           <h2>Enter ticket manually</h2>
 
           <p>
-            Paste a ticket token, or review the token
-            captured by the scanner.
+            Paste the complete ticket UUID, or review the
+            code captured by the scanner.
           </p>
 
           <form onSubmit={submit}>
             <label htmlFor="attendance-token">
-              Ticket token
+              Ticket UUID
             </label>
 
             <input
@@ -499,9 +551,16 @@ function AttendanceWorkspace({ id }) {
                 setResult(null);
                 setCheckError("");
               }}
-              disabled={checking || scanning}
+              disabled={
+                !canCheckIn ||
+                checking ||
+                scanning ||
+                refreshing
+              }
               autoComplete="off"
+              autoCapitalize="none"
               spellCheck={false}
+              maxLength={100}
               placeholder="Paste or scan ticket UUID"
               required
             />
@@ -510,6 +569,7 @@ function AttendanceWorkspace({ id }) {
               className="at-button at-primary"
               type="submit"
               disabled={
+                !canCheckIn ||
                 checking ||
                 refreshing ||
                 scanning ||
@@ -522,10 +582,21 @@ function AttendanceWorkspace({ id }) {
             </button>
 
             <span className="at-form-help">
-              Scanning reads the token. Press Verify
-              &amp; check in to record attendance.
+              Scanning reads the code. Press Verify &amp;
+              check in to record attendance.
             </span>
           </form>
+
+          <AttendanceLookup
+            eventId={id}
+            disabled={
+              !canCheckIn ||
+              checking ||
+              scanning ||
+              refreshing
+            }
+            onCheckIn={checkInRegistration}
+          />
 
           {result && (
             <div
@@ -558,8 +629,12 @@ function AttendanceWorkspace({ id }) {
 
       <p className="at-security">
         Attendance is confirmed by the server.
-        Invalid and duplicate tickets are rejected.
+        Invalid and duplicate check-ins are rejected.
       </p>
+      <AttendanceExports
+        eventId={id}
+        disabled={checking || refreshing}
+      />
 
       <section
         className="at-panel at-register"
@@ -576,9 +651,7 @@ function AttendanceWorkspace({ id }) {
             onClick={refresh}
             disabled={refreshing || checking}
           >
-            {refreshing
-              ? "Refreshing…"
-              : "Refresh ↻"}
+            {refreshing ? "Refreshing…" : "Refresh ↻"}
           </button>
         </div>
 
@@ -645,23 +718,19 @@ function AttendanceWorkspace({ id }) {
                   <td>
                     <span
                       className={`at-status ${
-                        record.attendance_status ===
-                        "present"
+                        record.attendance_status === "present"
                           ? "at-present"
                           : "at-pending"
                       }`}
                     >
-                      {record.attendance_status ===
-                      "present"
+                      {record.attendance_status === "present"
                         ? "Present"
                         : "Pending"}
                     </span>
                   </td>
 
                   <td>
-                    {dateTime(
-                      record.checked_in_at
-                    )}
+                    {dateTime(record.checked_in_at)}
                   </td>
                 </tr>
               ))}

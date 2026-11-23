@@ -604,3 +604,364 @@
     transition: none !important;
   }
 }
+.at-lookup {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #e1e5ee;
+  min-width: 0;
+}
+
+.at-lookup > p {
+  line-height: 1.65;
+}
+
+.at-lookup form {
+  display: grid;
+  gap: 10px;
+}
+
+.at-lookup :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 12px;
+  border: 1px solid #d9dfeb;
+  border-radius: 10px;
+  background: #fff;
+  color: #17213a;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.at-lookup-result {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #dfe4ef;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+
+.at-lookup-result > span {
+  color: #617087;
+  font-size: 0.88rem;
+}
+
+.at-lookup-result button {
+  margin-top: 8px;
+}
+/* Attendance export card */
+
+.at-page .at-panel.at-exports {
+  display: block;
+  margin-block: 24px;
+  padding: clamp(20px, 3vw, 32px);
+  min-width: 0;
+  border: 1px solid #e2e5ec;
+  border-radius: 20px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.at-page .at-exports h2 {
+  margin: 0 0 10px;
+  color: #191c25;
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  font-weight: 750;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+
+.at-page .at-exports > p {
+  max-width: 760px;
+  margin: 0 0 24px;
+  color: #68758b;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.at-page .at-exports label {
+  display: block;
+  margin: 0 0 9px;
+  color: #26334b;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.at-page .at-exports select {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  min-height: 48px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #dce2ee;
+  border-radius: 11px;
+  background: #fafbfe;
+  color: #26334b;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.at-page .at-exports select:focus-visible,
+.at-page .at-exports button:focus-visible {
+  outline: 3px solid #a6b2ff;
+  outline-offset: 3px;
+}
+
+.at-page .at-exports > .at-form-help {
+  display: block;
+  max-width: 680px;
+  margin: 12px 0 0;
+  color: #778297;
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.at-page .at-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.at-page .at-export-actions > .at-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: 46px;
+  margin: 0;
+  padding: 12px 20px;
+  border-radius: 11px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.at-page .at-exports > p[role="status"] {
+  max-width: none;
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #d5e9dc;
+  border-radius: 10px;
+  background: #f1f8f3;
+  color: #356449;
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+
+.at-page .at-exports > p[role="alert"] {
+  max-width: none;
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff1f1;
+  color: #a43737;
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+  .at-page .at-panel.at-exports {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .at-page .at-exports select {
+    max-width: none;
+    font-size: 1rem;
+  }
+
+  .at-page .at-export-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .at-page .at-export-actions > .at-button {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+.at-exports > p {
+  line-height: 1.65;
+}
+
+.at-exports label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 650;
+}
+
+.at-exports select {
+  width: 100%;
+  max-width: 480px;
+  min-height: 46px;
+  padding: 12px;
+  border: 1px solid #d9dfeb;
+  border-radius: 10px;
+  background: #fff;
+  color: #17213a;
+  font: inherit;
+  box-sizing: border-box;
+}
+.at-page .at-reference-download {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid #e6e9f0;
+}
+
+.at-page .at-reference-download h3 {
+  margin: 0 0 8px;
+  color: #26334b;
+  font-size: 1rem;
+}
+
+.at-page .at-reference-download p {
+  max-width: 720px;
+  margin: 0 0 16px;
+  color: #68758b;
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+/* Attendance downloads */
+
+.at-page .at-panel.at-exports {
+  display: block;
+  box-sizing: border-box;
+  margin: 24px 0;
+  padding: clamp(20px, 3vw, 32px);
+  background: #fff;
+  border: 1px solid #e7e7ec;
+  border-radius: 20px;
+}
+
+.at-page .at-exports > h2 {
+  margin: 0 0 12px;
+  color: #191b23;
+  font-size: clamp(1.2rem, 2vw, 1.45rem);
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+
+.at-page .at-exports > p {
+  max-width: 760px;
+  margin: 0 0 22px;
+  color: #68758b;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.at-page .at-exports > label {
+  display: block;
+  margin: 0 0 8px;
+  color: #26334b;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.at-page .at-exports > select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 520px;
+  min-height: 48px;
+  padding: 12px 40px 12px 14px;
+  border: 1px solid #dce1ed;
+  border-radius: 12px;
+  background-color: #fafbfe;
+  color: #26334b;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.at-page .at-exports > select:focus-visible {
+  outline: 3px solid #dce2ff;
+  outline-offset: 2px;
+  border-color: #3855ff;
+}
+
+.at-page .at-exports > .at-form-help {
+  margin: 12px 0 20px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.at-page .at-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.at-page .at-exports .at-button {
+  min-height: 46px;
+  padding: 12px 20px;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.at-page .at-reference-download {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid #e6e9f1;
+}
+
+.at-page .at-reference-download h3 {
+  margin: 0 0 10px;
+  color: #26334b;
+  font-size: 1rem;
+}
+
+.at-page .at-reference-download p {
+  max-width: 720px;
+  margin: 0 0 16px;
+  color: #68758b;
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.at-page .at-exports > .at-export-status {
+  margin: 20px 0 0;
+  padding: 12px 16px;
+  border: 1px solid #ccebd8;
+  border-radius: 12px;
+  background: #effaf3;
+  color: #226340;
+  font-size: 0.85rem;
+}
+
+.at-page .at-exports > .at-error {
+  margin: 20px 0 0;
+  padding: 12px 16px;
+  border: 1px solid #f1cccc;
+  border-radius: 12px;
+  background: #fff3f3;
+  color: #a53030;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+  .at-page .at-panel.at-exports {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .at-page .at-exports > select {
+    max-width: none;
+    font-size: 1rem;
+  }
+
+  .at-page .at-export-actions {
+    flex-direction: column;
+  }
+
+  .at-page .at-exports .at-button {
+    width: 100%;
+  }
+}

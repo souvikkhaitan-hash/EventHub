@@ -8,7 +8,11 @@ from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from events.permissions import IsOrganizer
+from .permissions import (
+    CanManageCertificates,
+    certificate_event,
+    certificate_event_ids,
+)
 
 from .award_services import (
     certificate_eligibility,
@@ -30,7 +34,7 @@ class AwardPreviewSerializer(serializers.Serializer):
 
 @method_decorator(csrf_protect, name="dispatch")
 class AwardRecipientPreviewView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
     parser_classes = [JSONParser]
 
     def post(self, request, version_id):

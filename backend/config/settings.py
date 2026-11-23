@@ -74,6 +74,9 @@ INSTALLED_APPS = [
     "events",
     "accounts",
     "certificates",
+    "anymail",
+    "eventhub_notifications.apps.EventHubNotificationsConfig",
+    "event_communication.apps.EventCommunicationConfig",
 ]
 
 MIDDLEWARE = [
@@ -328,3 +331,138 @@ if CERTIFICATE_STORAGE_BACKEND == "s3":
             response_checksum_validation="when_required",
         ),
     }
+    
+    # ============================================================
+# ACCOUNT EMAIL AND PASSWORD RECOVERY
+# ============================================================
+
+from urllib.parse import urlsplit
+
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL",
+    "http://localhost:5173" if DEBUG else "",
+).rstrip("/")
+
+frontend_parts = urlsplit(FRONTEND_URL)
+
+if (
+    frontend_parts.scheme not in {"http", "https"}
+    or not frontend_parts.netloc
+    or frontend_parts.path
+    or frontend_parts.query
+    or frontend_parts.fragment
+    or frontend_parts.username
+    or frontend_parts.password
+):
+    raise ImproperlyConfigured(
+        "FRONTEND_URL must be a complete frontend origin, "
+        "for example http://localhost:5173."
+    )
+
+if not DEBUG and frontend_parts.scheme != "https":
+    raise ImproperlyConfigured(
+        "Production FRONTEND_URL must use HTTPS."
+    )
+
+# Reset links expire after 30 minutes.
+PASSWORD_RESET_TIMEOUT = 30 * 60
+
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    (
+        "django.core.mail.backends.console.EmailBackend"
+        if DEBUG
+        else "django.core.mail.backends.smtp.EmailBackend"
+    ),
+)
+
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL",
+    "EventHub <noreply@example.test>",
+)
+
+EMAIL_TIMEOUT = 10
+
+# Shared database-backed cache for account-request limits.
+# This does not replace any existing default cache.
+CACHES = {
+    **globals().get("CACHES", {}),
+    "account_security": {
+        "BACKEND": (
+            "django.core.cache.backends.db.DatabaseCache"
+        ),
+        "LOCATION": "eventhub_account_security_cache",
+        "TIMEOUT": 3600,
+        "OPTIONS": {
+            "MAX_ENTRIES": 10000,
+        },
+    },
+}
+
+if "default" not in CACHES:
+    CACHES["default"] = {
+        "BACKEND": (
+            "django.core.cache.backends.locmem.LocMemCache"
+        ),
+    }
+# ============================================================
+# BREVO TRANSACTIONAL EMAIL API
+# ============================================================
+
+ANYMAIL = {
+    "BREVO_API_KEY": os.getenv(
+        "BREVO_API_KEY",
+        "",
+    ),
+}
+
+ANYMAIL["REQUESTS_TIMEOUT"] = 20
+
+if EMAIL_BACKEND == "anymail.backends.brevo.EmailBackend":
+    if not ANYMAIL["BREVO_API_KEY"]:
+        raise ImproperlyConfigured(
+            "Set BREVO_API_KEY before enabling Brevo email."
+        )
+
+    if (
+        not DEFAULT_FROM_EMAIL
+        or "example.test" in DEFAULT_FROM_EMAIL
+    ):
+        raise ImproperlyConfigured(
+            "Set DEFAULT_FROM_EMAIL to your verified sender."
+        )
+
+# ============================================================
+# LOGIN REQUEST LIMITS
+# ============================================================
+
+ACCOUNT_LOGIN_IP_RATE = "120/min"
+ACCOUNT_LOGIN_USERNAME_RATE = "10/min"
+
+
+
+EVENTHUB_NOTIFICATIONS = {
+    "VAPID_PUBLIC_KEY": os.getenv("VAPID_PUBLIC_KEY", "").strip(),
+    "VAPID_PRIVATE_KEY": os.getenv("VAPID_PRIVATE_KEY", "").strip(),
+    "VAPID_SUBJECT": os.getenv("VAPID_SUBJECT", "").strip(),
+    "WHATSAPP_ENABLED": os.getenv("WHATSAPP_ENABLED", "false").lower() == "true",
+    "WHATSAPP_ACCESS_TOKEN": os.getenv("WHATSAPP_ACCESS_TOKEN", "").strip(),
+    "WHATSAPP_APP_SECRET": os.getenv("WHATSAPP_APP_SECRET", "").strip(),
+    "WHATSAPP_VERIFY_TOKEN": os.getenv("WHATSAPP_VERIFY_TOKEN", "").strip(),
+    "WHATSAPP_API_VERSION": os.getenv("WHATSAPP_API_VERSION", "").strip(),
+    "WHATSAPP_PHONE_NUMBER_ID": os.getenv("WHATSAPP_PHONE_NUMBER_ID", "").strip(),
+    "WHATSAPP_BUSINESS_NUMBER": os.getenv("WHATSAPP_BUSINESS_NUMBER", "").strip(),
+    "WHATSAPP_LANGUAGE": os.getenv("WHATSAPP_LANGUAGE", "en_US").strip(),
+    "WHATSAPP_MARKETING_ENABLED": os.getenv("WHATSAPP_MARKETING_ENABLED", "false").lower() == "true",
+    "WHATSAPP_TEMPLATES": {
+        "registration_confirmed": os.getenv("WHATSAPP_TEMPLATE_REGISTRATION", "").strip(),
+        "event_changed": os.getenv("WHATSAPP_TEMPLATE_EVENT_CHANGED", "").strip(),
+        "event_cancelled": os.getenv("WHATSAPP_TEMPLATE_EVENT_CANCELLED", "").strip(),
+        "event_reminder": os.getenv("WHATSAPP_TEMPLATE_REMINDER", "").strip(),
+        "payment_confirmed": os.getenv("WHATSAPP_TEMPLATE_PAYMENT", "").strip(),
+        "refund_updated": os.getenv("WHATSAPP_TEMPLATE_REFUND", "").strip(),
+        "promotion": os.getenv("WHATSAPP_TEMPLATE_PROMOTION", "").strip(),
+    },
+}
+
+EVENTHUB_ADMIN_REVIEW_PATH = "/admin/applications"

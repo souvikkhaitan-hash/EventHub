@@ -17,7 +17,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from events.models import Event
-from events.permissions import IsOrganizer
+from .permissions import (
+    CanManageCertificates,
+    certificate_event,
+    certificate_event_ids,
+)
 
 from .models import (
     CertificateTemplate,
@@ -55,21 +59,17 @@ def owned_version(user, version_id):
             "template__event__organizer"
         ),
         id=version_id,
-        template__event__organizer=user,
+        template__event_id__in=certificate_event_ids(user),
     )
 
 
 @method_decorator(csrf_protect, name="dispatch")
 class EventCertificateTemplatesView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
     parser_classes = [MultiPartParser, FormParser]
 
     def get(self, request, event_id):
-        event = get_object_or_404(
-            Event,
-            id=event_id,
-            organizer=request.user,
-        )
+        event = certificate_event(request.user, event_id)
 
         templates = (
             CertificateTemplate.objects
@@ -85,11 +85,7 @@ class EventCertificateTemplatesView(APIView):
         )
 
     def post(self, request, event_id):
-        event = get_object_or_404(
-            Event,
-            id=event_id,
-            organizer=request.user,
-        )
+        event = certificate_event(request.user, event_id)
 
         serializer = TemplateUploadSerializer(
             data=request.data
@@ -118,6 +114,12 @@ class EventCertificateTemplatesView(APIView):
 
         try:
             with transaction.atomic():
+                event = certificate_event(
+                    request.user,
+                    event_id,
+                    lock=True,
+                )
+
                 template = CertificateTemplate.objects.create(
                     event=event,
                     name=serializer.validated_data["name"],
@@ -155,14 +157,14 @@ class EventCertificateTemplatesView(APIView):
 
 @method_decorator(csrf_protect, name="dispatch")
 class TemplateVersionsView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
     parser_classes = [JSONParser]
 
     def get(self, request, template_id):
         template = get_object_or_404(
             CertificateTemplate,
             id=template_id,
-            event__organizer=request.user,
+            event_id__in=certificate_event_ids(request.user),
         )
 
         return Response(
@@ -179,12 +181,26 @@ class TemplateVersionsView(APIView):
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
+            reference = get_object_or_404(
+                CertificateTemplate,
+                id=template_id,
+                event_id__in=certificate_event_ids(
+                    request.user
+                ),
+            )
+
+            certificate_event(
+                request.user,
+                reference.event_id,
+                lock=True,
+            )
+
             template = get_object_or_404(
                 CertificateTemplate.objects.select_for_update(
                     of=("self",)
                 ),
                 id=template_id,
-                event__organizer=request.user,
+                event_id__in=certificate_event_ids(request.user),
             )
 
             latest = template.versions.order_by(
@@ -237,7 +253,7 @@ class TemplateVersionsView(APIView):
 
 
 class TemplateBackgroundView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
 
     def get(self, request, version_id):
         version = owned_version(
@@ -265,7 +281,7 @@ class TemplateBackgroundView(APIView):
 
 @method_decorator(csrf_protect, name="dispatch")
 class TemplatePreviewView(APIView):
-    permission_classes = [IsOrganizer]
+    permission_classes = [CanManageCertificates]
     parser_classes = [JSONParser]
 
     def post(self, request, version_id):

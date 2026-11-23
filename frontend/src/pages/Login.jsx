@@ -5,8 +5,14 @@ import AuthLayout from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
 
 import "../styles/auth.css";
+import "../styles/password-security.css";
+import AuthPortalSwitch from "../components/AuthPortalSwitch";
 
-export default function Login() {
+export default function Login({
+  accountType = "student",
+}) {
+  const organizerLogin =
+    accountType === "organizer";
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -29,14 +35,23 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login({
-        username: username.trim(),
-        password,
-      });
+     const result = await login({
+  username: username.trim(),
+  password,
+  portal: "account",
+});
 
-      navigate("/", {
-        replace: true,
-      });
+const destination = organizerLogin
+  ? (
+      result.user.is_organizer
+        ? "/organizer"
+        : "/become-organizer"
+    )
+  : "/";
+
+navigate(destination, {
+  replace: true,
+});
     } catch (err) {
       setError(
         err.message ||
@@ -48,11 +63,27 @@ export default function Login() {
   }
 
   return (
-    <AuthLayout
-      title="Welcome back."
-      description="Your next campus experience is waiting. Sign in and pick up right where you left off."
-    >
+   <AuthLayout
+  title={
+    organizerLogin
+      ? "Your next event starts here."
+      : "Welcome back."
+  }
+  description={
+    organizerLogin
+      ? "Sign in to manage your events or check your organizer application."
+      : "Your next campus experience is waiting. Sign in and pick up right where you left off."
+  }
+>
       <div className="auth-v2">
+        <AuthPortalSwitch
+  mode="login"
+  active={
+    organizerLogin
+      ? "organizer"
+      : "student"
+  }
+/>
 
         {/* SUCCESS MESSAGE */}
 
@@ -194,6 +225,12 @@ export default function Login() {
               </button>
             </div>
           </div>
+          <Link
+  to="/forgot-password"
+  className="password-forgot-link"
+>
+  Forgot password?
+</Link>
 
           {/* SUBMIT */}
 
@@ -228,13 +265,24 @@ export default function Login() {
         <div className="auth-v2-bottom">
           <p className="auth-switch">
             New to EventHub?{" "}
-            <Link to="/register">
-              Create an account ↗
+            <Link
+  to={
+    organizerLogin
+      ? "/organizer/register"
+      : "/register"
+  }
+>
             </Link>
           </p>
         </div>
 
       </div>
+      <p className="auth-switch">
+  Platform administrator?{" "}
+  <Link to="/admin/login">
+    Admin sign in
+  </Link>
+</p>
     </AuthLayout>
   );
 }

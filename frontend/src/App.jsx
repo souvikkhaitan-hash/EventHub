@@ -1,4 +1,9 @@
-import { useEffect, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+} from "react";
 
 import {
   Link,
@@ -8,36 +13,157 @@ import {
 } from "react-router";
 
 import Navbar from "./components/Navbar";
-import HomeSections, { CampusHeroArtwork } from "./components/HomeSections";
 
-import Login from "./pages/Login";
-import Register from "./pages/Register";
+import HomeSections, {
+  CampusHeroArtwork,
+} from "./components/HomeSections";
 
-import OrganizerLayout from "./components/OrganizerLayout";
-import OrganizerDashboard from "./pages/OrganizerDashboard";
-import EventForm from "./pages/EventForm";
+import EventAccessGate, {
+  OrganizerOnly,
+} from "./components/EventAccessGate";
 
-import ExploreEvents from "./pages/ExploreEvents";
-import EventDetails from "./pages/EventDetails";
-
-import MyRegistrations from "./pages/MyRegistrations";
-import StudentTicket from "./pages/StudentTicket";
-
-import OrganizerParticipants from "./pages/OrganizerParticipants";
-import OrganizerTeams from "./pages/OrganizerTeams";
-import OrganizerAttendance from "./pages/OrganizerAttendance";
-import OrganizerAnalytics from "./pages/OrganizerAnalytics";
+import EventPromotionLink from "./components/EventPromotionLink";
 
 import "./App.css";
 import "./styles/auth.css";
 import "./styles/home-v2.css";
 import "./styles/home-editorial.css";
-import OrganizerCertificates from "./pages/OrganizerCertificates";
-import VerifyCertificate from "./pages/VerifyCertificate";
 
-// ============================================================
-// SCROLL TO PAGE SECTION
-// ============================================================
+// Feature pages load when needed.
+
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+
+const OrganizerLayout = lazy(
+  () => import("./components/OrganizerLayout")
+);
+
+const EventForm = lazy(
+  () => import("./pages/EventForm")
+);
+
+const ExploreEvents = lazy(
+  () => import("./pages/ExploreEvents")
+);
+
+const EventDetails = lazy(
+  () => import("./pages/EventDetails")
+);
+
+const MyRegistrations = lazy(
+  () => import("./pages/MyRegistrations")
+);
+
+const StudentTicket = lazy(
+  () => import("./pages/StudentTicket")
+);
+
+const OrganizerParticipants = lazy(
+  () => import("./pages/OrganizerParticipants")
+);
+
+const OrganizerTeams = lazy(
+  () => import("./pages/OrganizerTeams")
+);
+
+const OrganizerAttendance = lazy(
+  () => import("./pages/OrganizerAttendance")
+);
+
+const OrganizerAnalytics = lazy(
+  () => import("./pages/OrganizerAnalytics")
+);
+
+const OrganizerCertificates = lazy(
+  () => import("./pages/OrganizerCertificates")
+);
+
+const OrganizerCommunication = lazy(
+  () => import("./pages/OrganizerCommunication")
+);
+
+const OrganizerPromotion = lazy(
+  () => import("./pages/OrganizerPromotion")
+);
+
+const VerifyCertificate = lazy(
+  () => import("./pages/VerifyCertificate")
+);
+
+const AccountProfile = lazy(
+  () => import("./pages/AccountProfile")
+);
+
+const ForgotPassword = lazy(
+  () => import("./pages/ForgotPassword")
+);
+
+const ResetPassword = lazy(
+  () => import("./pages/ResetPassword")
+);
+
+const OrganizerApplication = lazy(
+  () => import("./pages/OrganizerApplication")
+);
+
+const AdminLogin = lazy(
+  () => import("./pages/AdminLogin")
+);
+
+const AdminApplications = lazy(
+  () => import("./pages/AdminApplications")
+);
+
+const EventStaff = lazy(
+  () => import("./pages/EventStaff")
+);
+
+const EventWorkspace = lazy(
+  () => import("./pages/EventWorkspace")
+);
+
+const WorkspaceHome = lazy(() =>
+  import("./pages/EventWorkspace").then((module) => ({
+    default: module.WorkspaceHome,
+  }))
+);
+
+const EventWorkspaceDetail = lazy(() =>
+  import("./pages/EventWorkspace").then((module) => ({
+    default: module.EventWorkspaceDetail,
+  }))
+);
+
+const EventCommunicationLink = lazy(() =>
+  import("./components/EventCommunication").then(
+    (module) => ({
+      default: module.EventCommunicationLink,
+    })
+  )
+);
+
+// Separate boundaries keep the organiser layout visible
+// while a child page's code loads.
+function Page({ children }) {
+  return (
+    <Suspense
+      fallback={
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            padding: "32px",
+            color: "#64718a",
+          }}
+        >
+          Loading page…
+        </div>
+      }
+    >
+      {children}
+    </Suspense>
+  );
+}
 
 function ScrollToSection() {
   const location = useLocation();
@@ -52,66 +178,41 @@ function ScrollToSection() {
       location.hash.slice(1)
     );
 
-    requestAnimationFrame(() => {
-      const section = document.getElementById(
-        sectionId
-      );
+    const frame = requestAnimationFrame(() => {
+      const section =
+        document.getElementById(sectionId);
 
-      if (section) {
-        const prefersReducedMotion = window.matchMedia(
-          "(prefers-reduced-motion: reduce)"
-        ).matches;
+      if (!section) return;
 
-        section.scrollIntoView({
-          behavior: prefersReducedMotion
-            ? "instant"
-            : "smooth",
-        });
-      }
+      const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches;
+
+      section.scrollIntoView({
+        behavior: reducedMotion
+          ? "instant"
+          : "smooth",
+      });
     });
+
+    return () => cancelAnimationFrame(frame);
   }, [location.pathname, location.hash]);
 
   return null;
 }
 
-
-// ============================================================
-// HERO POSTER ARTWORK
-// ============================================================
-
-function PosterArtwork() {
-  return <CampusHeroArtwork />;
-}
-
-// ============================================================
-// FOOTER
-// ============================================================
-
 function Footer() {
   return (
-    <footer
-      className="site-footer"
-      id="about"
-    >
-
+    <footer className="site-footer" id="about">
       <div className="container">
-
         <div className="footer-main">
-
-          {/* BRAND */}
-
           <div className="footer-brand">
-
-            <Link
-              to="/"
-              className="footer-logo"
-            >
+            <Link to="/" className="footer-logo">
               <img
                 src="/eventhub-logo.svg"
                 alt="EventHub Logo"
                 className="footer-brand-logo"
               />
-
               EventHub
             </Link>
 
@@ -119,13 +220,9 @@ function Footer() {
               Making campus life a little more
               exciting, one event at a time.
             </p>
-
           </div>
 
-          {/* FOOTER LINKS */}
-
           <div className="footer-links">
-
             <div>
               <h3>Explore</h3>
 
@@ -140,44 +237,25 @@ function Footer() {
 
             <div>
               <h3>Account</h3>
-
-              <Link to="/login">
-                Sign in
-              </Link>
-
-              <Link to="/register">
-                Get started
-              </Link>
+              <Link to="/login">Sign in</Link>
+              <Link to="/register">Get started</Link>
             </div>
-
           </div>
-
         </div>
 
         <div className="footer-bottom">
-
           <span>© 2026 EventHub</span>
 
           <span>
             COLLEGE EVENT REGISTRATION & MANAGEMENT
           </span>
 
-          <span>
-            MADE FOR CAMPUS LIFE ✳
-          </span>
-
+          <span>MADE FOR CAMPUS LIFE ✳</span>
         </div>
-
       </div>
-
     </footer>
   );
 }
-
-
-// ============================================================
-// BACK TO TOP BUTTON
-// ============================================================
 
 function BackToTop() {
   const [visible, setVisible] = useState(false);
@@ -189,9 +267,11 @@ function BackToTop() {
 
     handleScroll();
 
-    window.addEventListener("scroll", handleScroll, {
-      passive: true,
-    });
+    window.addEventListener(
+      "scroll",
+      handleScroll,
+      { passive: true }
+    );
 
     return () => {
       window.removeEventListener(
@@ -200,6 +280,8 @@ function BackToTop() {
       );
     };
   }, []);
+
+  if (!visible) return null;
 
   function scrollToTop() {
     const reducedMotion = window.matchMedia(
@@ -212,10 +294,6 @@ function BackToTop() {
         ? "instant"
         : "smooth",
     });
-  }
-
-  if (!visible) {
-    return null;
   }
 
   return (
@@ -231,24 +309,15 @@ function BackToTop() {
   );
 }
 
-
-// ============================================================
-// HOME PAGE
-// ============================================================
-
 function Home() {
-
-  // Reveal sections as the visitor scrolls.
   useEffect(() => {
-    const main = document.querySelector(
-      ".home-v2"
-    );
+    const main =
+      document.querySelector(".home-v2");
 
     if (!main) return;
 
-    const sections = main.querySelectorAll(
-      "[data-reveal]"
-    );
+    const sections =
+      main.querySelectorAll("[data-reveal]");
 
     if (
       !("IntersectionObserver" in window) ||
@@ -271,9 +340,7 @@ function Home() {
           }
         });
       },
-      {
-        threshold: 0.08,
-      }
+      { threshold: 0.08 }
     );
 
     main.classList.add("reveal-ready");
@@ -293,20 +360,9 @@ function Home() {
       <Navbar />
 
       <main className="home-v2 eh-home">
-
-        {/* ================================================
-            HERO SECTION
-        ================================================ */}
-
-        <section
-          className="home-hero"
-          id="home"
-        >
-
+        <section className="home-hero" id="home">
           <div className="container hero-layout">
-
             <div className="hero-copy">
-
               <div className="hero-eyebrow">
                 <span className="eyebrow-dot" />
                 THE CAMPUS CULTURE PLATFORM
@@ -334,16 +390,12 @@ function Home() {
               </p>
 
               <div className="hero-actions">
-
                 <Link
                   to="/events"
                   className="hero-primary-button"
                 >
                   Explore Events
-
-                  <span aria-hidden="true">
-                    ↗
-                  </span>
+                  <span aria-hidden="true">↗</span>
                 </Link>
 
                 <Link
@@ -351,35 +403,21 @@ function Home() {
                   className="hero-secondary-button"
                 >
                   How it works
-
-                  <span aria-hidden="true">
-                    ↗
-                  </span>
+                  <span aria-hidden="true">↗</span>
                 </Link>
-
               </div>
 
               <div className="hero-bottom-label">
-                <span>
-                  BUILT FOR THE CURIOUS.
-                </span>
-
-                <span>
-                  MADE FOR THE BOLD.
-                </span>
+                <span>BUILT FOR THE CURIOUS.</span>
+                <span>MADE FOR THE BOLD.</span>
               </div>
-
             </div>
 
-            <PosterArtwork />
-
+            <CampusHeroArtwork />
           </div>
-
         </section>
 
-
         <HomeSections />
-
       </main>
 
       <Footer />
@@ -388,122 +426,275 @@ function Home() {
   );
 }
 
-
-// ============================================================
-// APPLICATION ROUTES
-// ============================================================
-
-function App() {
+export default function App() {
   return (
     <>
       <ScrollToSection />
 
       <Routes>
+        {/* Public */}
 
-        {/* PUBLIC ROUTES */}
-
-        <Route
-          path="/"
-          element={<Home />}
-        />
-
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
-        <Route
-          path="/register"
-          element={<Register />}
-        />
+        <Route path="/" element={<Home />} />
 
         <Route
           path="/events"
-          element={<ExploreEvents />}
+          element={
+            <Page><ExploreEvents /></Page>
+          }
         />
 
         <Route
           path="/events/:id"
-          element={<EventDetails />}
+          element={
+            <Page><EventDetails /></Page>
+          }
         />
+
         <Route
           path="/certificates/verify/:certificateId"
-          element={<VerifyCertificate />}
+          element={
+            <Page><VerifyCertificate /></Page>
+          }
         />
 
+        {/* Accounts */}
 
-        {/* STUDENT ROUTES */}
+        <Route
+          path="/login"
+          element={<Page><Login /></Page>}
+        />
+
+        <Route
+          path="/register"
+          element={<Page><Register /></Page>}
+        />
+
+        <Route
+          path="/account/profile"
+          element={
+            <Page><AccountProfile /></Page>
+          }
+        />
+
+        <Route
+          path="/forgot-password"
+          element={
+            <Page><ForgotPassword /></Page>
+          }
+        />
+
+        <Route
+          path="/reset-password/:uid/:token"
+          element={
+            <Page><ResetPassword /></Page>
+          }
+        />
+
+        <Route
+          path="/become-organizer"
+          element={
+            <Page><OrganizerApplication /></Page>
+          }
+        />
+
+        <Route
+          path="/organizer/login"
+          element={
+            <Page>
+              <Login accountType="organizer" />
+            </Page>
+          }
+        />
+
+        <Route
+          path="/organizer/register"
+          element={
+            <Page>
+              <Register accountType="organizer" />
+            </Page>
+          }
+        />
+
+        {/* Admin */}
+
+        <Route
+          path="/admin/login"
+          element={
+            <Page><AdminLogin /></Page>
+          }
+        />
+
+        <Route
+          path="/admin/applications"
+          element={
+            <Page><AdminApplications /></Page>
+          }
+        />
+
+        {/* Students */}
 
         <Route
           path="/my-registrations"
-          element={<MyRegistrations />}
+          element={
+            <Page><MyRegistrations /></Page>
+          }
         />
 
         <Route
           path="/my-registrations/:registrationId/ticket"
-          element={<StudentTicket />}
+          element={
+            <Page><StudentTicket /></Page>
+          }
         />
 
-
-        {/* ORGANIZER WORKSPACE */}
+        {/* Organisers and event staff */}
 
         <Route
           path="/organizer"
-          element={<OrganizerLayout />}
+          element={
+            <Page><OrganizerLayout /></Page>
+          }
         >
-
           <Route
             index
-            element={<OrganizerDashboard />}
+            element={
+              <Page><WorkspaceHome /></Page>
+            }
+          />
+
+          <Route
+            path="workspace"
+            element={
+              <Page><EventWorkspace /></Page>
+            }
           />
 
           <Route
             path="events/new"
-            element={<EventForm />}
+            element={
+              <Page>
+                <OrganizerOnly>
+                  <EventForm />
+                </OrganizerOnly>
+              </Page>
+            }
+          />
+
+          <Route
+            path="events/:id/workspace"
+            element={
+              <Page>
+                <EventAccessGate capability="view_event">
+                  <EventCommunicationLink />
+                  <EventPromotionLink />
+                  <EventWorkspaceDetail />
+                </EventAccessGate>
+              </Page>
+            }
+          />
+
+          <Route
+            path="events/:id/communication"
+            element={
+              <Page>
+                <EventAccessGate capability="edit_event">
+                  <OrganizerCommunication />
+                </EventAccessGate>
+              </Page>
+            }
+          />
+
+          <Route
+            path="events/:id/promotion"
+            element={
+              <Page>
+                <EventAccessGate capability="edit_event">
+                  <OrganizerPromotion />
+                </EventAccessGate>
+              </Page>
+            }
+          />
+
+          <Route
+            path="events/:id/staff"
+            element={
+              <Page>
+                <EventAccessGate capability="manage_staff">
+                  <EventStaff />
+                </EventAccessGate>
+              </Page>
+            }
           />
 
           <Route
             path="events/:id/edit"
-            element={<EventForm />}
+            element={
+              <Page>
+                <EventAccessGate capability="edit_event">
+                  <EventForm />
+                </EventAccessGate>
+              </Page>
+            }
           />
 
           <Route
             path="events/:id/participants"
-            element={<OrganizerParticipants />}
+            element={
+              <Page>
+                <EventAccessGate capability="view_participants">
+                  <OrganizerParticipants />
+                </EventAccessGate>
+              </Page>
+            }
           />
+
           <Route
             path="events/:id/teams"
-            element={<OrganizerTeams />}
+            element={
+              <Page>
+                <EventAccessGate ownerOnly>
+                  <OrganizerTeams />
+                </EventAccessGate>
+              </Page>
+            }
           />
 
           <Route
             path="events/:id/attendance"
-            element={<OrganizerAttendance />}
+            element={
+              <Page>
+                <EventAccessGate capability="view_attendance">
+                  <OrganizerAttendance />
+                </EventAccessGate>
+              </Page>
+            }
           />
+
           <Route
             path="events/:id/certificates"
-            element={<OrganizerCertificates />}
+            element={
+              <Page>
+                <EventAccessGate capability="manage_certificates">
+                  <OrganizerCertificates />
+                </EventAccessGate>
+              </Page>
+            }
           />
 
           <Route
             path="analytics"
-            element={<OrganizerAnalytics />}
+            element={
+              <Page>
+                <OrganizerOnly>
+                  <OrganizerAnalytics />
+                </OrganizerOnly>
+              </Page>
+            }
           />
-
         </Route>
 
-
-
-        {/* FALLBACK */}
-
-        <Route
-          path="*"
-          element={<Home />}
-        />
-
+        <Route path="*" element={<Home />} />
       </Routes>
     </>
   );
 }
-
-export default App;

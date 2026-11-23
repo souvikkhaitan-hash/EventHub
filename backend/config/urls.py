@@ -10,4 +10,9 @@ urlpatterns = [
         "api/certificates/",
         include("certificates.urls"),
     ),
+    path(
+        "api/notifications/",
+        include("eventhub_notifications.urls"),
+    ),
+    path("api/communication/", include("event_communication.urls")),
 ]
