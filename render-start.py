@@ -71,6 +71,17 @@ def main():
         if migration.returncode != 0:
             return 1
 
+        subprocess.run(
+            [
+                sys.executable,
+                "manage.py",
+                "createcachetable",
+                "--noinput",
+            ],
+            cwd=ROOT / "backend",
+            check=True,
+        )
+
         launch(
             [
                 "-m",
