@@ -107,6 +107,15 @@ def main():
             "backend",
         )
 
+        launch(
+            [
+                "manage.py",
+                "process_eventhub_jobs",
+                "--watch",
+            ],
+            "backend",
+        )
+
         while not stopping:
             if any(
                 child.poll() is not None
